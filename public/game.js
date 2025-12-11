@@ -1,3 +1,5 @@
+const socket = io();
+
 // Game Canvas Setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -22,7 +24,7 @@ const gameState = {
     isTransitioning: false
 };
 
-// Player Object
+// Player Object (Local)
 const player = {
     x: 50,
     y: 300,
@@ -38,13 +40,25 @@ const player = {
     facingRight: true
 };
 
+// Partner Object (Remote)
+const partner = {
+    active: false,
+    name: '',
+    x: 50,
+    y: 300,
+    width: 32,
+    height: 32,
+    color: '#4a8bc9', // Default blue, will update
+    facingRight: true,
+    level: 1
+};
+
 // Current Level Data
 let platforms = [];
 let collectibles = [];
-let particles = []; // Visual effects
-let snowflakes = []; // Global snow effect
+let particles = [];
+let snowflakes = [];
 
-// Initialize snowflakes
 for(let i=0; i<100; i++) {
     snowflakes.push({
         x: Math.random() * canvas.width,
@@ -55,7 +69,6 @@ for(let i=0; i<100; i++) {
     });
 }
 
-// --- Level Design Data ---
 const ground = { x: 0, y: 550, width: 800, height: 50, color: '#fff', type: 'snow_ground' };
 
 const levelsData = [
@@ -98,7 +111,7 @@ const levelsData = [
         id: 3,
         title: "Pine Forest",
         theme: { sky: ['#004b23', '#006400', '#007200'], mountain: '#38b000', platform: '#2d6a4f', accent: '#1b4332' },
-        collectibleType: 'ornament', // Changed from leaf
+        collectibleType: 'ornament', 
         platforms: [
             ground,
             { x: 0, y: 400, w: 200, h: 40 },
@@ -114,12 +127,12 @@ const levelsData = [
     },
     {
         id: 4,
-        title: "Candy Cane Lane", // Renamed
+        title: "Candy Cane Lane", 
         theme: { sky: ['#d90429', '#ef233c', '#edf2f4'], mountain: '#8d99ae', platform: '#ffffff', accent: '#d90429' },
         collectibleType: 'candy',
         platforms: [
             ground,
-            { x: 100, y: 500, w: 50, h: 200 }, // Pillars
+            { x: 100, y: 500, w: 50, h: 200 },
             { x: 300, y: 400, w: 50, h: 200 },
             { x: 500, y: 300, w: 50, h: 300 },
             { x: 700, y: 200, w: 50, h: 400 },
@@ -131,9 +144,9 @@ const levelsData = [
     },
     {
         id: 5,
-        title: "Gingerbread Village", // Renamed
+        title: "Gingerbread Village", 
         theme: { sky: ['#432818', '#664229', '#99582a'], mountain: '#bb9457', platform: '#8B4513', accent: '#ffe6a7' },
-        collectibleType: 'gingerbread', // New type
+        collectibleType: 'gingerbread', 
         platforms: [
             ground,
             { x: 0, y: 150, w: 100, h: 20 },
@@ -158,7 +171,7 @@ const levelsData = [
             { x: 50, y: 480, w: 80, h: 20 },
             { x: 150, y: 400, w: 80, h: 20 },
             { x: 250, y: 320, w: 80, h: 20 },
-            { x: 400, y: 250, w: 300, h: 30 }, // Mantle
+            { x: 400, y: 250, w: 300, h: 30 }, 
             { x: 750, y: 350, w: 50, h: 20 }
         ],
         collectibles: [
@@ -188,7 +201,7 @@ const levelsData = [
         id: 8,
         title: "Reindeer Stables",
         theme: { sky: ['#3c096c', '#5a189a', '#7b2cbf'], mountain: '#240046', platform: '#9d4edd', accent: '#e0aaff' },
-        collectibleType: 'bell', // New type
+        collectibleType: 'bell', 
         platforms: [
             ground,
             { x: 0, y: 450, w: 150, h: 50 },
@@ -233,7 +246,7 @@ const levelsData = [
             { x: 550, y: 350, w: 50, h: 20 },
             { x: 100, y: 250, w: 50, h: 20 },
             { x: 650, y: 250, w: 50, h: 20 },
-            { x: 350, y: 150, w: 100, h: 20 } // Summit
+            { x: 350, y: 150, w: 100, h: 20 }
         ],
         collectibles: [
             { x: 350, y: 400 }, { x: 400, y: 400 }, { x: 215, y: 300 }, { x: 565, y: 300 }, { x: 115, y: 200 }, { x: 665, y: 200 }, { x: 380, y: 100 }, { x: 400, y: 100 }, { x: 360, y: 100 }
@@ -279,7 +292,7 @@ function updatePhysics() {
     if ((keys[' '] || keys['ArrowUp'] || keys['w'] || keys['W']) && player.onGround) {
         player.velocityY = -player.jumpPower;
         player.onGround = false;
-        createParticles(player.x + player.width/2, player.y + player.height, '#fff', 5); // Jump snow
+        createParticles(player.x + player.width/2, player.y + player.height, '#fff', 5);
     }
 
     // Gravity
@@ -320,20 +333,34 @@ function updatePhysics() {
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
     if (player.y > canvas.height) {
-        // Fall off screen - respawn
         resetPlayerPosition();
     }
 
-    // Collectibles
+    // Collectibles & Multiplayer Sync
     for (let i = 0; i < collectibles.length; i++) {
         let c = collectibles[i];
         if (!c.collected && checkCollision(player, c)) {
+            // Optimistic update
             c.collected = true;
             gameState.progress++;
             createParticles(c.x + c.width/2, c.y + c.height/2, c.color || '#fff', 15);
             updateUI();
+            
+            // Send to server
+            socket.emit('starCollected', { levelId: gameState.currentLevel, collectibleIndex: i });
+            
             checkLevelComplete();
         }
+    }
+
+    // Network Update (Send position to server)
+    if (gameState.running) {
+        socket.emit('playerUpdate', {
+            x: player.x,
+            y: player.y,
+            facingRight: player.facingRight,
+            level: gameState.currentLevel
+        });
     }
 }
 
@@ -342,7 +369,6 @@ function updateSnow() {
     snowflakes.forEach(f => {
         f.y += f.speed;
         f.x += Math.sin(f.y * 0.05 + f.sway) * 0.5;
-        
         if (f.y > canvas.height) {
             f.y = -10;
             f.x = Math.random() * canvas.width;
@@ -397,7 +423,6 @@ function drawRect(x, y, w, h, color, border='#000') {
 }
 
 function drawBackground(theme) {
-    // Gradient Sky
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     theme.sky.forEach((color, index) => {
         gradient.addColorStop(index / (theme.sky.length - 1), color);
@@ -405,7 +430,6 @@ function drawBackground(theme) {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Mountains
     ctx.fillStyle = theme.mountain;
     ctx.beginPath();
     ctx.moveTo(0, canvas.height);
@@ -416,7 +440,6 @@ function drawBackground(theme) {
     ctx.lineTo(canvas.width, canvas.height);
     ctx.fill();
 
-    // Snowflakes (Background)
     ctx.fillStyle = '#fff';
     snowflakes.forEach(f => {
         ctx.globalAlpha = 0.6;
@@ -429,14 +452,10 @@ function drawBackground(theme) {
 
 function drawPlatforms(theme) {
     platforms.forEach(p => {
-        // Snow topper
         ctx.fillStyle = '#fff';
         ctx.fillRect(p.x - 2, p.y - 6, p.width + 4, 10);
-        
-        // Main block
         drawRect(p.x, p.y, p.width, p.height, theme.platform);
         
-        // Christmas Lights Decor
         const lightColors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00'];
         for(let i=5; i<p.width; i+=20) {
              ctx.fillStyle = lightColors[(i/20 + Math.floor(Date.now()/500)) % lightColors.length];
@@ -447,51 +466,51 @@ function drawPlatforms(theme) {
     });
 }
 
-function drawPlayer() {
-    const p = player;
+// Reusable character drawer
+function drawCharacter(charObj) {
+    if (!charObj) return;
     
     // Body
-    drawRect(p.x, p.y, p.width, p.height, p.color);
+    drawRect(charObj.x, charObj.y, charObj.width, charObj.height, charObj.color);
     
-    // Elf/Santa Coat details
-    ctx.fillStyle = '#fff'; // White trim vertical
-    ctx.fillRect(p.x + p.width/2 - 2, p.y, 4, p.height);
+    // Coat details
+    ctx.fillStyle = '#fff'; 
+    ctx.fillRect(charObj.x + charObj.width/2 - 2, charObj.y, 4, charObj.height);
     
     // Belt
     ctx.fillStyle = '#000';
-    ctx.fillRect(p.x, p.y + 20, p.width, 4);
-    ctx.fillStyle = '#ffd700'; // Gold Buckle
-    ctx.fillRect(p.x + p.width/2 - 4, p.y + 19, 8, 6);
+    ctx.fillRect(charObj.x, charObj.y + 20, charObj.width, 4);
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(charObj.x + charObj.width/2 - 4, charObj.y + 19, 8, 6);
     
     // Eyes
     ctx.fillStyle = '#000';
-    if (p.facingRight) {
-        ctx.fillRect(p.x + 20, p.y + 8, 4, 4);
-        ctx.fillRect(p.x + 26, p.y + 8, 4, 4);
+    if (charObj.facingRight) {
+        ctx.fillRect(charObj.x + 20, charObj.y + 8, 4, 4);
+        ctx.fillRect(charObj.x + 26, charObj.y + 8, 4, 4);
     } else {
-        ctx.fillRect(p.x + 2, p.y + 8, 4, 4);
-        ctx.fillRect(p.x + 8, p.y + 8, 4, 4);
+        ctx.fillRect(charObj.x + 2, charObj.y + 8, 4, 4);
+        ctx.fillRect(charObj.x + 8, charObj.y + 8, 4, 4);
     }
     
-    // SANTA HAT
-    ctx.fillStyle = '#d90429'; // Red hat
+    // HAT
+    ctx.fillStyle = '#d90429'; 
     ctx.beginPath();
-    if (p.facingRight) {
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x + p.width, p.y);
-        ctx.lineTo(p.x + p.width/2, p.y - 15); // Pointy top
+    if (charObj.facingRight) {
+        ctx.moveTo(charObj.x, charObj.y);
+        ctx.lineTo(charObj.x + charObj.width, charObj.y);
+        ctx.lineTo(charObj.x + charObj.width/2, charObj.y - 15);
     } else {
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x + p.width, p.y);
-        ctx.lineTo(p.x + p.width/2, p.y - 15);
+        ctx.moveTo(charObj.x, charObj.y);
+        ctx.lineTo(charObj.x + charObj.width, charObj.y);
+        ctx.lineTo(charObj.x + charObj.width/2, charObj.y - 15);
     }
     ctx.fill();
     
-    // Hat White Trim
     ctx.fillStyle = '#fff';
-    ctx.fillRect(p.x - 2, p.y - 4, p.width + 4, 6); // Base trim
+    ctx.fillRect(charObj.x - 2, charObj.y - 4, charObj.width + 4, 6);
     ctx.beginPath(); 
-    ctx.arc(p.x + p.width/2, p.y - 15, 5, 0, Math.PI*2); // Pom pom
+    ctx.arc(charObj.x + charObj.width/2, charObj.y - 15, 5, 0, Math.PI*2); 
     ctx.fill();
 }
 
@@ -500,8 +519,6 @@ function drawIcon(type, x, y, size) {
     const cy = y + size/2;
     ctx.save();
     ctx.translate(cx, cy);
-    
-    // Bobbing animation
     const bob = Math.sin(Date.now() / 200) * 3;
     ctx.translate(0, bob);
 
@@ -525,22 +542,22 @@ function drawIcon(type, x, y, size) {
             ctx.lineTo(-size/3, 0);
             ctx.fill();
             break;
-        case 'ornament': // Round shiny ball
+        case 'ornament': 
             ctx.fillStyle = '#ff0000';
             ctx.beginPath(); ctx.arc(0, 0, size/2.5, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#fff'; // Shine
+            ctx.fillStyle = '#fff'; 
             ctx.beginPath(); ctx.arc(-size/6, -size/6, size/8, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#ffd700'; // Cap
+            ctx.fillStyle = '#ffd700'; 
             ctx.fillRect(-size/6, -size/2, size/3, size/6);
             break;
         case 'gingerbread':
             ctx.fillStyle = '#8B4513';
             ctx.beginPath();
-            ctx.arc(0, -size/4, size/6, 0, Math.PI*2); // Head
+            ctx.arc(0, -size/4, size/6, 0, Math.PI*2); 
             ctx.fill();
-            ctx.fillRect(-size/4, -size/4, size/2, size/2); // Body
-            ctx.fillRect(-size/2, -size/4, size/4, size/6); // Left Arm
-            ctx.fillRect(size/4, -size/4, size/4, size/6); // Right Arm
+            ctx.fillRect(-size/4, -size/4, size/2, size/2); 
+            ctx.fillRect(-size/2, -size/4, size/4, size/6); 
+            ctx.fillRect(size/4, -size/4, size/4, size/6); 
             break;
         case 'stocking':
             ctx.fillStyle = '#D32F2F';
@@ -620,12 +637,116 @@ function draw() {
     drawBackground(level.theme);
     drawPlatforms(level.theme);
     drawCollectibles(level.collectibleType);
-    drawPlayer();
+    
+    // Draw Player
+    drawCharacter(player);
+    
+    // Draw Partner (if they are on the same level)
+    if (partner.active && partner.level === gameState.currentLevel) {
+        ctx.globalAlpha = 0.7; // Ghost effect
+        drawCharacter(partner);
+        // Name tag
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px Courier New';
+        ctx.fillText(partner.name, partner.x, partner.y - 25);
+        ctx.globalAlpha = 1.0;
+    }
     
     particles.forEach(p => p.draw(ctx));
 }
 
-// --- Game Logic ---
+// --- Socket Events & Game Logic ---
+
+socket.on('connect', () => {
+    document.getElementById('connectionStatus').textContent = 'Connected!';
+    document.getElementById('connectionStatus').style.color = '#00ff00';
+});
+
+socket.on('currentPlayers', (takenNames) => {
+    // Disable buttons if taken
+    const btnVilde = document.getElementById('btnVilde');
+    const btnNora = document.getElementById('btnNora');
+    
+    if (takenNames.includes('Vilde')) {
+        btnVilde.disabled = true;
+        btnVilde.style.background = '#333';
+        btnVilde.style.color = '#777';
+        btnVilde.textContent = 'Vilde (Taken)';
+    }
+    
+    if (takenNames.includes('Nora')) {
+        btnNora.disabled = true;
+        btnNora.style.background = '#333';
+        btnNora.style.color = '#777';
+        btnNora.textContent = 'Nora (Taken)';
+    }
+    
+    // Update Partner UI name if we are playing
+    if (gameState.running) {
+        const otherName = takenNames.find(n => n !== gameState.playerName);
+        if (otherName) {
+            document.getElementById('partnerNameDisplay').textContent = otherName;
+            partner.active = true;
+            partner.name = otherName;
+            partner.color = otherName === 'Nora' ? '#4a8bc9' : '#c94a4a';
+        } else {
+            document.getElementById('partnerNameDisplay').textContent = 'Waiting...';
+            partner.active = false;
+        }
+    }
+});
+
+socket.on('selectionSuccess', (name) => {
+    startGame(name);
+});
+
+socket.on('selectionError', (msg) => {
+    alert(msg);
+    location.reload();
+});
+
+socket.on('playerJoined', (data) => {
+    if (data.name !== gameState.playerName) {
+        console.log('Partner joined:', data.name);
+    }
+});
+
+socket.on('otherPlayerMoved', (data) => {
+    if (!gameState.running) return;
+    partner.active = true;
+    partner.x = data.x;
+    partner.y = data.y;
+    partner.facingRight = data.facingRight;
+    partner.level = data.level;
+});
+
+socket.on('globalStarCollected', (data) => {
+    try {
+        // data = { levelId, collectibleIndex }
+        if (data.levelId === gameState.currentLevel) {
+            // Safety check for array bounds
+            if (collectibles && 
+                collectibles[data.collectibleIndex] && 
+                !collectibles[data.collectibleIndex].collected) {
+                
+                const item = collectibles[data.collectibleIndex];
+                item.collected = true;
+                gameState.progress++;
+                
+                // Add center offset for particle origin if possible, otherwise use x/y
+                const pX = item.x + (item.width ? item.width / 2 : 15);
+                const pY = item.y + (item.height ? item.height / 2 : 15);
+                
+                createParticles(pX, pY, '#ffd700', 10);
+                
+                updateUI();
+                checkLevelComplete();
+            }
+        }
+    } catch (e) {
+        console.error("Error handling globalStarCollected:", e);
+    }
+});
 
 function loadLevel(levelIndex) {
     if (levelIndex > gameState.totalLevels) {
@@ -638,7 +759,6 @@ function loadLevel(levelIndex) {
     
     const level = levelsData[levelIndex - 1];
     
-    // Deep copy platforms and collectibles to avoid modifying the template
     platforms = level.platforms.map(p => ({...p, width: p.w || p.width, height: p.h || p.height, type: p.type || 'normal'}));
     collectibles = level.collectibles.map(c => ({
         x: c.x, 
@@ -646,22 +766,73 @@ function loadLevel(levelIndex) {
         width: 30, 
         height: 30, 
         collected: false,
-        color: '#fff' // Placeholder, drawing uses type
+        color: '#fff' 
     }));
     
-    // Reset player
     resetPlayerPosition();
     
-    // Reset Progress
     gameState.progress = 0;
     gameState.maxProgress = collectibles.length;
     
     updateUI();
-    
-    // Hide Overlay
     document.getElementById('messageScreen').classList.add('hidden');
     
+    // Sync state with server
+    if (socket && socket.connected) {
+        socket.emit('requestLevelState', level.id);
+    }
+    
     console.log(`Loaded Level ${level.id}: ${level.title}`);
+}
+
+socket.on('levelStateResponse', (data) => {
+    if (data.levelId === gameState.currentLevel && data.collectedIndices) {
+        data.collectedIndices.forEach(index => {
+            if (collectibles[index] && !collectibles[index].collected) {
+                collectibles[index].collected = true;
+                gameState.progress++;
+            }
+        });
+        updateUI();
+        checkLevelComplete();
+    }
+});
+
+function checkLevelComplete() {
+    console.log(`Checking Level Complete: ${gameState.progress}/${gameState.maxProgress} (Transitioning: ${gameState.isTransitioning})`);
+    if (gameState.progress >= gameState.maxProgress && !gameState.isTransitioning) {
+        console.log("Level Complete! Transitioning...");
+        gameState.isTransitioning = true;
+        updateUI();
+        setTimeout(showLevelComplete, 500);
+    }
+}
+
+function showLevelComplete() {
+    const screen = document.getElementById('messageScreen');
+    const title = document.getElementById('messageTitle');
+    const sub = document.getElementById('messageSubtitle');
+    const btn = document.getElementById('btnNextLevel');
+    
+    console.log("Showing Level Complete Screen");
+    screen.classList.remove('hidden');
+    screen.style.display = 'flex';
+    
+    if (gameState.currentLevel === gameState.totalLevels) {
+        title.textContent = "MERRY CHRISTMAS!";
+        sub.textContent = "You saved the holidays!";
+        btn.textContent = "Play Again";
+        btn.onclick = () => location.reload();
+    } else {
+        title.textContent = "Level Complete!";
+        sub.textContent = `Next stop: ${levelsData[gameState.currentLevel].title}`;
+        btn.textContent = "Continue Journey";
+        btn.onclick = () => {
+            screen.classList.add('hidden');
+            screen.style.display = '';
+            loadLevel(gameState.currentLevel + 1);
+        };
+    }
 }
 
 function resetPlayerPosition() {
@@ -678,54 +849,33 @@ function updateUI() {
     document.getElementById('maxProgress').textContent = gameState.maxProgress;
 }
 
-function checkLevelComplete() {
-    if (gameState.progress >= gameState.maxProgress && !gameState.isTransitioning) {
-        gameState.isTransitioning = true;
-        setTimeout(showLevelComplete, 500);
-    }
-}
-
-function showLevelComplete() {
-    const screen = document.getElementById('messageScreen');
-    const title = document.getElementById('messageTitle');
-    const sub = document.getElementById('messageSubtitle');
-    const btn = document.getElementById('btnNextLevel');
-    
-    screen.classList.remove('hidden');
-    
-    if (gameState.currentLevel === gameState.totalLevels) {
-        title.textContent = "MERRY CHRISTMAS!";
-        sub.textContent = "You saved the holidays!";
-        btn.textContent = "Play Again";
-        btn.onclick = () => location.reload();
-    } else {
-        title.textContent = "Level Complete!";
-        sub.textContent = `Next stop: ${levelsData[gameState.currentLevel].title}`;
-        btn.textContent = "Continue Journey";
-        btn.onclick = () => loadLevel(gameState.currentLevel + 1);
-    }
-}
-
-function gameComplete() {
-    showLevelComplete();
-}
-
 function gameLoop() {
-    if (gameState.running && !gameState.isTransitioning) {
-        updatePhysics();
-        updateSnow();
-        updateParticles();
-    }
-    if (gameState.running) {
-        draw();
+    try {
+        if (gameState.running && !gameState.isTransitioning) {
+            updatePhysics();
+            updateSnow();
+            updateParticles();
+        }
+        if (gameState.running) {
+            draw();
+        }
+    } catch (e) {
+        console.error("Game loop error:", e);
+        // Attempt to recover by not stopping, but maybe resetting a state if needed
     }
     requestAnimationFrame(gameLoop);
 }
 
-// --- Init ---
+// Button Events - Now just requests selection
+document.getElementById('btnVilde').addEventListener('click', () => {
+    if (typeof initAudio === 'function') initAudio(); 
+    socket.emit('selectCharacter', 'Vilde');
+});
 
-document.getElementById('btnVilde').addEventListener('click', () => startGame('Vilde'));
-document.getElementById('btnNora').addEventListener('click', () => startGame('Nora'));
+document.getElementById('btnNora').addEventListener('click', () => {
+    if (typeof initAudio === 'function') initAudio();
+    socket.emit('selectCharacter', 'Nora');
+});
 
 function startGame(name) {
     gameState.playerName = name;
@@ -736,12 +886,6 @@ function startGame(name) {
     document.getElementById('gameUI').classList.remove('hidden');
     
     gameState.running = true;
-    
-    // Initialize audio on start (this ensures user interaction)
-    if (typeof initAudio === 'function') {
-        initAudio(); 
-    }
-    
     loadLevel(1);
     gameLoop();
 }

@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Holiday Adventure</title>
+    <title>Holiday Adventure: Vilde & Nora</title>
     <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
     <div class="game-container">
@@ -12,6 +13,7 @@
         <div id="startScreen" class="overlay-screen">
             <h1>Holiday Adventure</h1>
             <h2>Choose Your Character</h2>
+            <div id="connectionStatus" style="color: #ffd700; margin-bottom: 10px;">Connecting...</div>
             <div class="player-selection">
                 <button class="btn" id="btnVilde">Vilde</button>
                 <button class="btn" id="btnNora">Nora</button>
@@ -30,11 +32,12 @@
         <!-- Game HUD -->
         <div class="ui hidden" id="gameUI">
             <div class="ui-left">
-                <div class="hud-panel">Player: <span id="playerNameDisplay"></span></div>
+                <div class="hud-panel">You: <span id="playerNameDisplay"></span></div>
+                <div class="hud-panel">Partner: <span id="partnerNameDisplay">Waiting...</span></div>
                 <div class="hud-panel">Level: <span id="levelDisplay">1</span>/10</div>
             </div>
             <div class="ui-right">
-                <div class="hud-panel">Collected: <span id="progress">0</span>/<span id="maxProgress">0</span></div>
+                <div class="hud-panel">Team Score: <span id="progress">0</span>/<span id="maxProgress">0</span></div>
             </div>
             <div class="instructions">
                 <p>← → Move | Space/Up Jump</p>
