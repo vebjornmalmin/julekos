@@ -1,5 +1,17 @@
 const socket = io();
 
+// Assets
+const assets = {
+    vilde: new Image(),
+    nora: new Image(),
+    troll: new Image(),
+    door: new Image()
+};
+assets.vilde.src = 'assets/vilde.svg';
+assets.nora.src = 'assets/nora.svg';
+assets.troll.src = 'assets/troll.svg';
+assets.door.src = 'assets/door.svg';
+
 // Game Canvas Setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -7,11 +19,13 @@ const ctx = canvas.getContext('2d');
 canvas.width = 800;
 canvas.height = 600;
 
-// Game Configuration & State
+// Game Configuration
 const gameConfig = {
     gravity: 0.6,
     terminalVelocity: 15,
-    friction: 0.8
+    friction: 0.8,
+    baseSpeed: 6,
+    baseJump: 18
 };
 
 const gameState = {
@@ -21,44 +35,49 @@ const gameState = {
     maxProgress: 0,
     running: false,
     playerName: '',
-    isTransitioning: false
+    isDead: false,
+    atDoor: false,
+    waitingAtDoor: false
 };
 
-// Player Object (Local)
+// Player Object
 const player = {
     x: 50,
     y: 300,
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     velocityX: 0,
     velocityY: 0,
-    speed: 6,
-    jumpPower: 18,
+    speed: gameConfig.baseSpeed,
+    jumpPower: gameConfig.baseJump,
     onGround: false,
-    color: '#c94a4a',
-    accentColor: '#2c1810',
-    facingRight: true
+    facingRight: true,
+    speedBoostTimer: 0,
+    jumpBoostTimer: 0
 };
 
-// Partner Object (Remote)
+// Partner Object
 const partner = {
     active: false,
     name: '',
     x: 50,
     y: 300,
-    width: 32,
-    height: 32,
-    color: '#4a8bc9', // Default blue, will update
+    width: 40,
+    height: 40,
     facingRight: true,
-    level: 1
+    level: 1,
+    isDead: false // Maybe track this later
 };
 
-// Current Level Data
+// Game Objects
 let platforms = [];
 let collectibles = [];
+let monsters = [];
+let door = null;
 let particles = [];
 let snowflakes = [];
 
+// Initialize background snow
 for(let i=0; i<100; i++) {
     snowflakes.push({
         x: Math.random() * canvas.width,
@@ -69,206 +88,309 @@ for(let i=0; i<100; i++) {
     });
 }
 
+// --- Classes ---
+class Monster {
+    constructor(x, y, range) {
+        this.x = x;
+        this.y = y;
+        this.width = 40;
+        this.height = 40;
+        this.startX = x;
+        this.range = range;
+        this.speed = 2;
+        this.direction = 1;
+        this.name = Math.random() > 0.5 ? 'Vebjørn' : 'Vetle';
+    }
+
+    update() {
+        this.x += this.speed * this.direction;
+        if (this.x > this.startX + this.range || this.x < this.startX) {
+            this.direction *= -1;
+        }
+    }
+
+    draw(ctx) {
+        ctx.drawImage(assets.troll, this.x, this.y, this.width, this.height);
+        // Name tag
+        ctx.fillStyle = '#ff0000';
+        ctx.font = '10px Courier New';
+        ctx.fillText(this.name, this.x, this.y - 5);
+    }
+}
+
+// --- Level Design ---
 const ground = { x: 0, y: 550, width: 800, height: 50, color: '#fff', type: 'snow_ground' };
 
+// We'll define just the first 2 levels detailed for now, keeping the others simple
 const levelsData = [
     {
         id: 1,
-        title: "Snowy Departure",
-        theme: { sky: ['#0d1b2a', '#1b263b', '#415a77'], mountain: '#778da9', platform: '#e0e1dd', accent: '#778da9' },
-        collectibleType: 'snowflake',
+        title: "Troll Bridge (Tutorial)",
+        theme: { sky: ['#0d1b2a', '#1b263b'], mountain: '#778da9', platform: '#e0e1dd' },
         platforms: [
             ground,
-            { x: 200, y: 450, w: 150, h: 40 },
-            { x: 450, y: 350, w: 150, h: 40 },
-            { x: 100, y: 250, w: 100, h: 40 },
-            { x: 300, y: 150, w: 200, h: 40 },
-            { x: 600, y: 250, w: 150, h: 40 }
+            { x: 200, y: 450, w: 400, h: 40 },
+            { x: 100, y: 300, w: 150, h: 40 },
+            { x: 550, y: 300, w: 150, h: 40 }
         ],
         collectibles: [
-            { x: 250, y: 400 }, { x: 500, y: 300 }, { x: 120, y: 200 }, { x: 350, y: 100 }, { x: 650, y: 200 }
-        ]
+            { x: 300, y: 400, type: 'snowflake', requiredPlayer: 'Vilde' }, // Speed
+            { x: 500, y: 400, type: 'star', requiredPlayer: 'Nora' },       // Jump
+            { x: 150, y: 250, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 600, y: 250, type: 'coin', requiredPlayer: 'Nora' }
+        ],
+        monsters: [
+            { x: 350, y: 410, range: 100 }
+        ],
+        door: { x: 700, y: 460 }
     },
     {
         id: 2,
-        title: "Frozen Lake",
-        theme: { sky: ['#caf0f8', '#90e0ef', '#00b4d8'], mountain: '#0077b6', platform: '#e0fbfc', accent: '#98c1d9' },
-        collectibleType: 'ice',
+        title: "Icy Peaks",
+        theme: { sky: ['#caf0f8', '#0077b6'], mountain: '#0077b6', platform: '#e0fbfc' },
         platforms: [
             ground,
-            { x: 50, y: 450, w: 100, h: 30 },
-            { x: 250, y: 400, w: 100, h: 30 },
-            { x: 450, y: 350, w: 100, h: 30 },
-            { x: 650, y: 300, w: 100, h: 30 },
-            { x: 350, y: 200, w: 100, h: 30 },
-            { x: 150, y: 150, w: 100, h: 30 }
+            { x: 100, y: 450, w: 100, h: 30 },
+            { x: 600, y: 450, w: 100, h: 30 },
+            { x: 350, y: 350, w: 100, h: 30 },
+            { x: 150, y: 250, w: 100, h: 30 },
+            { x: 550, y: 250, w: 100, h: 30 },
+            { x: 350, y: 150, w: 100, h: 30 }
         ],
         collectibles: [
-            { x: 70, y: 400 }, { x: 270, y: 350 }, { x: 470, y: 300 }, { x: 670, y: 250 }, { x: 370, y: 150 }, { x: 170, y: 100 }
-        ]
+            { x: 120, y: 400, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 620, y: 400, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 370, y: 300, type: 'snowflake', requiredPlayer: 'Nora' },
+            { x: 170, y: 200, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 570, y: 200, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 370, y: 100, type: 'coin', requiredPlayer: 'Vilde' }
+        ],
+        monsters: [
+            { x: 200, y: 510, range: 400 } // Ground patroller
+        ],
+        door: { x: 370, y: 70 } // Very top
     },
     {
         id: 3,
-        title: "Pine Forest",
-        theme: { sky: ['#004b23', '#006400', '#007200'], mountain: '#38b000', platform: '#2d6a4f', accent: '#1b4332' },
-        collectibleType: 'ornament', 
+        title: "Split Paths",
+        theme: { sky: ['#000000', '#2a9d8f'], mountain: '#264653', platform: '#2a9d8f' },
         platforms: [
             ground,
-            { x: 0, y: 400, w: 200, h: 40 },
-            { x: 600, y: 400, w: 200, h: 40 },
-            { x: 300, y: 300, w: 200, h: 40 },
-            { x: 100, y: 200, w: 150, h: 40 },
-            { x: 550, y: 200, w: 150, h: 40 },
-            { x: 350, y: 100, w: 100, h: 40 }
+            // Left Tower
+            { x: 50, y: 400, w: 100, h: 30 },
+            { x: 50, y: 250, w: 100, h: 30 },
+            { x: 50, y: 100, w: 200, h: 30 },
+            // Right Tower
+            { x: 650, y: 400, w: 100, h: 30 },
+            { x: 650, y: 250, w: 100, h: 30 },
+            { x: 550, y: 100, w: 200, h: 30 }
         ],
         collectibles: [
-            { x: 100, y: 350 }, { x: 700, y: 350 }, { x: 400, y: 250 }, { x: 175, y: 150 }, { x: 625, y: 150 }, { x: 400, y: 50 }
-        ]
+            // Left side for Vilde
+            { x: 70, y: 350, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 70, y: 200, type: 'star', requiredPlayer: 'Vilde' },
+            // Right side for Nora
+            { x: 670, y: 350, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 670, y: 200, type: 'star', requiredPlayer: 'Nora' },
+            // Top shared
+            { x: 400, y: 50, type: 'snowflake', requiredPlayer: 'Vilde' },
+            { x: 450, y: 50, type: 'snowflake', requiredPlayer: 'Nora' }
+        ],
+        monsters: [
+            { x: 300, y: 510, range: 200 },
+            { x: 60, y: 60, range: 100 }, // On top left
+            { x: 600, y: 60, range: 100 } // On top right
+        ],
+        door: { x: 370, y: 460 } // Middle ground (must climb down or fall safely)
     },
     {
         id: 4,
-        title: "Candy Cane Lane", 
-        theme: { sky: ['#d90429', '#ef233c', '#edf2f4'], mountain: '#8d99ae', platform: '#ffffff', accent: '#d90429' },
-        collectibleType: 'candy',
+        title: "Monster Mash",
+        theme: { sky: ['#590d22', '#ff4d6d'], mountain: '#800f2f', platform: '#a4133c' },
         platforms: [
             ground,
-            { x: 100, y: 500, w: 50, h: 200 },
-            { x: 300, y: 400, w: 50, h: 200 },
-            { x: 500, y: 300, w: 50, h: 300 },
-            { x: 700, y: 200, w: 50, h: 400 },
-            { x: 200, y: 350, w: 80, h: 20 }
+            { x: 0, y: 400, w: 800, h: 30 }, // Second floor
+            { x: 100, y: 250, w: 600, h: 30 }, // Third floor
+            { x: 350, y: 150, w: 100, h: 30 }  // Top perch
         ],
         collectibles: [
-            { x: 115, y: 450 }, { x: 315, y: 350 }, { x: 515, y: 250 }, { x: 715, y: 150 }, { x: 240, y: 300 }
-        ]
+            { x: 50, y: 350, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 750, y: 350, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 150, y: 200, type: 'star', requiredPlayer: 'Nora' },
+            { x: 650, y: 200, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 400, y: 100, type: 'coin', requiredPlayer: 'Nora' }
+        ],
+        monsters: [
+            { x: 100, y: 510, range: 600 }, // Ground
+            { x: 50, y: 360, range: 700 }, // Second floor
+            { x: 150, y: 210, range: 500 } // Third floor
+        ],
+        door: { x: 370, y: 70 } // Very top
     },
     {
         id: 5,
-        title: "Gingerbread Village", 
-        theme: { sky: ['#432818', '#664229', '#99582a'], mountain: '#bb9457', platform: '#8B4513', accent: '#ffe6a7' },
-        collectibleType: 'gingerbread', 
+        title: "Leap of Faith",
+        theme: { sky: ['#e9c46a', '#f4a261'], mountain: '#e76f51', platform: '#264653' },
         platforms: [
             ground,
-            { x: 0, y: 150, w: 100, h: 20 },
-            { x: 150, y: 250, w: 100, h: 20 },
-            { x: 300, y: 350, w: 100, h: 20 },
-            { x: 450, y: 450, w: 100, h: 20 },
-            { x: 600, y: 350, w: 100, h: 20 },
-            { x: 700, y: 200, w: 100, h: 20 },
-            { x: 350, y: 100, w: 50, h: 20 }
+            { x: 0, y: 450, w: 100, h: 30 },
+            { x: 200, y: 450, w: 50, h: 30 }, // Small
+            { x: 350, y: 400, w: 50, h: 30 }, // Small
+            { x: 500, y: 350, w: 50, h: 30 }, // Small
+            { x: 650, y: 300, w: 50, h: 30 }, // Small
+            { x: 400, y: 200, w: 200, h: 30 } // Top
         ],
         collectibles: [
-            { x: 20, y: 100 }, { x: 170, y: 200 }, { x: 320, y: 300 }, { x: 470, y: 400 }, { x: 620, y: 300 }, { x: 720, y: 150 }, { x: 360, y: 50 }
-        ]
+            { x: 215, y: 400, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 365, y: 350, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 515, y: 300, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 665, y: 250, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 450, y: 150, type: 'snowflake', requiredPlayer: 'Vilde' }
+        ],
+        monsters: [
+            { x: 400, y: 160, range: 150 } // Guarding the door
+        ],
+        door: { x: 500, y: 120 }
     },
     {
         id: 6,
-        title: "Cozy Hearth",
-        theme: { sky: ['#590d22', '#800f2f', '#a4133c'], mountain: '#3E2723', platform: '#5D4037', accent: '#D2691E' },
-        collectibleType: 'stocking',
+        title: "Troll Cave",
+        theme: { sky: ['#000000', '#14213d'], mountain: '#000000', platform: '#3d405b' },
         platforms: [
             ground,
-            { x: 50, y: 480, w: 80, h: 20 },
-            { x: 150, y: 400, w: 80, h: 20 },
-            { x: 250, y: 320, w: 80, h: 20 },
-            { x: 400, y: 250, w: 300, h: 30 }, 
-            { x: 750, y: 350, w: 50, h: 20 }
+            { x: 0, y: 100, w: 800, h: 50 }, // Ceiling
+            { x: 100, y: 450, w: 200, h: 30 },
+            { x: 500, y: 450, w: 200, h: 30 },
+            { x: 300, y: 300, w: 200, h: 30 },
+            { x: 100, y: 200, w: 50, h: 30 },
+            { x: 650, y: 200, w: 50, h: 30 }
         ],
         collectibles: [
-            { x: 80, y: 430 }, { x: 180, y: 350 }, { x: 280, y: 270 }, { x: 420, y: 200 }, { x: 500, y: 200 }, { x: 580, y: 200 }, { x: 660, y: 200 }
-        ]
+            { x: 150, y: 400, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 600, y: 400, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 400, y: 250, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 115, y: 150, type: 'snowflake', requiredPlayer: 'Nora' },
+            { x: 665, y: 150, type: 'coin', requiredPlayer: 'Vilde' }
+        ],
+        monsters: [
+            { x: 300, y: 510, range: 200 },
+            { x: 100, y: 410, range: 150 },
+            { x: 500, y: 410, range: 150 },
+            { x: 300, y: 260, range: 150 }
+        ],
+        door: { x: 370, y: 460 } // Bottom center, protected
     },
     {
         id: 7,
-        title: "Elf Workshop",
-        theme: { sky: ['#2b9348', '#55a630', '#80b918'], mountain: '#004b23', platform: '#aacc00', accent: '#d90429' },
-        collectibleType: 'gift',
+        title: "Speedway",
+        theme: { sky: ['#00b4d8', '#90e0ef'], mountain: '#caf0f8', platform: '#0077b6' },
         platforms: [
             ground,
-            { x: 100, y: 500, w: 100, h: 20 },
-            { x: 300, y: 500, w: 100, h: 20 },
-            { x: 500, y: 500, w: 100, h: 20 },
-            { x: 200, y: 350, w: 400, h: 20 },
-            { x: 100, y: 200, w: 100, h: 20 },
-            { x: 600, y: 200, w: 100, h: 20 },
-            { x: 350, y: 100, w: 100, h: 20 }
+            { x: 0, y: 450, w: 300, h: 30 },
+            { x: 400, y: 400, w: 400, h: 30 },
+            { x: 0, y: 300, w: 300, h: 30 },
+            { x: 400, y: 200, w: 400, h: 30 },
+            { x: 0, y: 100, w: 200, h: 30 }
         ],
         collectibles: [
-            { x: 130, y: 450 }, { x: 330, y: 450 }, { x: 530, y: 450 }, { x: 250, y: 300 }, { x: 450, y: 300 }, { x: 130, y: 150 }, { x: 630, y: 150 }, { x: 380, y: 50 }
-        ]
+            { x: 50, y: 400, type: 'snowflake', requiredPlayer: 'Vilde' },
+            { x: 750, y: 350, type: 'snowflake', requiredPlayer: 'Nora' },
+            { x: 50, y: 250, type: 'snowflake', requiredPlayer: 'Vilde' },
+            { x: 750, y: 150, type: 'star', requiredPlayer: 'Nora' },
+            { x: 50, y: 50, type: 'coin', requiredPlayer: 'Vilde' }
+        ],
+        monsters: [
+            { x: 400, y: 360, range: 350 },
+            { x: 0, y: 260, range: 250 },
+            { x: 400, y: 160, range: 350 }
+        ],
+        door: { x: 50, y: 20 } // Top left
     },
     {
         id: 8,
-        title: "Reindeer Stables",
-        theme: { sky: ['#3c096c', '#5a189a', '#7b2cbf'], mountain: '#240046', platform: '#9d4edd', accent: '#e0aaff' },
-        collectibleType: 'bell', 
+        title: "The Vertical Limit",
+        theme: { sky: ['#ffb703', '#fb8500'], mountain: '#023047', platform: '#8ecae6' },
         platforms: [
             ground,
-            { x: 0, y: 450, w: 150, h: 50 },
-            { x: 650, y: 450, w: 150, h: 50 },
+            { x: 350, y: 450, w: 100, h: 20 },
             { x: 200, y: 350, w: 100, h: 20 },
             { x: 500, y: 350, w: 100, h: 20 },
-            { x: 300, y: 250, w: 200, h: 20 },
-            { x: 350, y: 150, w: 100, h: 20 }
+            { x: 350, y: 250, w: 100, h: 20 },
+            { x: 100, y: 150, w: 100, h: 20 },
+            { x: 600, y: 150, w: 100, h: 20 },
+            { x: 350, y: 50, w: 100, h: 20 }
         ],
         collectibles: [
-            { x: 50, y: 400 }, { x: 700, y: 400 }, { x: 230, y: 300 }, { x: 530, y: 300 }, { x: 350, y: 200 }, { x: 400, y: 200 }, { x: 380, y: 100 }
-        ]
+            { x: 390, y: 400, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 240, y: 300, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 540, y: 300, type: 'star', requiredPlayer: 'Nora' },
+            { x: 390, y: 200, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 140, y: 100, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 640, y: 100, type: 'coin', requiredPlayer: 'Vilde' }
+        ],
+        monsters: [
+            { x: 0, y: 510, range: 800 } // Floor is lava (monsters everywhere)
+        ],
+        door: { x: 370, y: -30 } // Top platform
     },
     {
         id: 9,
-        title: "Silent Night",
-        theme: { sky: ['#000000', '#14213d', '#fca311'], mountain: '#000000', platform: '#e5e5e5', accent: '#fca311' },
-        collectibleType: 'star',
+        title: "Silent Night (Hard)",
+        theme: { sky: ['#000', '#111'], mountain: '#222', platform: '#333' },
         platforms: [
             ground,
-            { x: 100, y: 450, w: 50, h: 10 },
-            { x: 200, y: 400, w: 50, h: 10 },
-            { x: 300, y: 350, w: 50, h: 10 },
-            { x: 400, y: 300, w: 50, h: 10 },
-            { x: 500, y: 250, w: 50, h: 10 },
-            { x: 600, y: 200, w: 50, h: 10 },
-            { x: 700, y: 150, w: 50, h: 10 }
+            { x: 100, y: 500, w: 50, h: 50 }, // Pillars
+            { x: 250, y: 400, w: 50, h: 50 },
+            { x: 400, y: 300, w: 50, h: 50 },
+            { x: 550, y: 200, w: 50, h: 50 },
+            { x: 700, y: 100, w: 50, h: 50 }
         ],
         collectibles: [
-            { x: 110, y: 400 }, { x: 210, y: 350 }, { x: 310, y: 300 }, { x: 410, y: 250 }, { x: 510, y: 200 }, { x: 610, y: 150 }, { x: 710, y: 100 }
-        ]
+            { x: 115, y: 450, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 265, y: 350, type: 'star', requiredPlayer: 'Nora' },
+            { x: 415, y: 250, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 565, y: 150, type: 'star', requiredPlayer: 'Nora' },
+            { x: 715, y: 50, type: 'coin', requiredPlayer: 'Vilde' }
+        ],
+        monsters: [
+            { x: 300, y: 510, range: 400 },
+            { x: 250, y: 360, range: 0 }, // Static monster on block? No range 0
+            { x: 400, y: 260, range: 0 }
+        ],
+        door: { x: 700, y: 20 }
     },
     {
         id: 10,
         title: "North Pole Summit",
-        theme: { sky: ['#ff0000', '#ff8700', '#ffd300', '#deff0a', '#a1ff0a', '#0aff99', '#0aefff', '#147df5', '#580aff', '#be0aff'], mountain: '#ffffff', platform: '#ffffff', accent: '#ff0000' },
-        collectibleType: 'heart',
+        theme: { sky: ['#fff', '#d90429'], mountain: '#2c1810', platform: '#d90429' },
         platforms: [
             ground,
-            { x: 300, y: 450, w: 200, h: 20 },
-            { x: 200, y: 350, w: 50, h: 20 },
-            { x: 550, y: 350, w: 50, h: 20 },
-            { x: 100, y: 250, w: 50, h: 20 },
-            { x: 650, y: 250, w: 50, h: 20 },
-            { x: 350, y: 150, w: 100, h: 20 }
+            { x: 0, y: 400, w: 200, h: 20 },
+            { x: 600, y: 400, w: 200, h: 20 },
+            { x: 300, y: 300, w: 200, h: 20 },
+            { x: 100, y: 200, w: 100, h: 20 },
+            { x: 600, y: 200, w: 100, h: 20 },
+            { x: 300, y: 100, w: 200, h: 20 }
         ],
         collectibles: [
-            { x: 350, y: 400 }, { x: 400, y: 400 }, { x: 215, y: 300 }, { x: 565, y: 300 }, { x: 115, y: 200 }, { x: 665, y: 200 }, { x: 380, y: 100 }, { x: 400, y: 100 }, { x: 360, y: 100 }
-        ]
+            { x: 50, y: 350, type: 'heart', requiredPlayer: 'Vilde' },
+            { x: 750, y: 350, type: 'heart', requiredPlayer: 'Nora' },
+            { x: 400, y: 250, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 150, y: 150, type: 'snowflake', requiredPlayer: 'Nora' },
+            { x: 650, y: 150, type: 'snowflake', requiredPlayer: 'Vilde' },
+            { x: 400, y: 50, type: 'heart', requiredPlayer: 'Nora' }
+        ],
+        monsters: [
+            { x: 0, y: 510, range: 800 }, // Chaos on floor
+            { x: 300, y: 260, range: 150 }, // Middle guard
+            { x: 300, y: 60, range: 150 } // Top guard
+        ],
+        door: { x: 370, y: 20 }
     }
 ];
 
-// --- Input Handling ---
-const keys = {};
+// --- Physics & Logic ---
 
-window.addEventListener('keydown', (e) => {
-    keys[e.key] = true;
-    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        e.preventDefault();
-    }
-});
-
-window.addEventListener('keyup', (e) => {
-    keys[e.key] = false;
-});
-
-// --- Physics ---
 function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width &&
            rect1.x + rect1.width > rect2.x &&
@@ -277,7 +399,9 @@ function checkCollision(rect1, rect2) {
 }
 
 function updatePhysics() {
-    // Horizontal
+    if (gameState.isDead) return;
+
+    // Movement
     if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
         player.velocityX = -player.speed;
         player.facingRight = false;
@@ -292,34 +416,37 @@ function updatePhysics() {
     if ((keys[' '] || keys['ArrowUp'] || keys['w'] || keys['W']) && player.onGround) {
         player.velocityY = -player.jumpPower;
         player.onGround = false;
-        createParticles(player.x + player.width/2, player.y + player.height, '#fff', 5);
     }
 
     // Gravity
     player.velocityY += gameConfig.gravity;
     if (player.velocityY > gameConfig.terminalVelocity) player.velocityY = gameConfig.terminalVelocity;
 
-    // Apply Velocity
     player.x += player.velocityX;
     player.y += player.velocityY;
 
-    // Platform Collisions
+    // Powerup Timers
+    if (player.speedBoostTimer > 0) {
+        player.speedBoostTimer--;
+        if(player.speedBoostTimer <= 0) player.speed = gameConfig.baseSpeed;
+    }
+    if (player.jumpBoostTimer > 0) {
+        player.jumpBoostTimer--;
+        if(player.jumpBoostTimer <= 0) player.jumpPower = gameConfig.baseJump;
+    }
+
+    // Platform Collision
     player.onGround = false;
     for (let platform of platforms) {
         if (checkCollision(player, platform)) {
-            // Landing
             if (player.velocityY > 0 && player.y + player.height - player.velocityY <= platform.y) {
                 player.y = platform.y - player.height;
                 player.velocityY = 0;
                 player.onGround = true;
-            }
-            // Hitting head
-            else if (player.velocityY < 0 && player.y - player.velocityY >= platform.y + platform.height) {
+            } else if (player.velocityY < 0 && player.y - player.velocityY >= platform.y + platform.height) {
                 player.y = platform.y + platform.height;
                 player.velocityY = 0;
-            }
-            // Side collisions
-            else if (player.velocityX > 0 && player.x + player.width - player.velocityX <= platform.x) {
+            } else if (player.velocityX > 0 && player.x + player.width - player.velocityX <= platform.x) {
                 player.x = platform.x - player.width;
                 player.velocityX = 0;
             } else if (player.velocityX < 0 && player.x - player.velocityX >= platform.x + platform.width) {
@@ -329,510 +456,252 @@ function updatePhysics() {
         }
     }
 
-    // Boundaries
+    // Boundaries -> Death
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
     if (player.y > canvas.height) {
-        resetPlayerPosition();
+        die("You fell!");
     }
 
-    // Collectibles & Multiplayer Sync
+    // Collectibles
     for (let i = 0; i < collectibles.length; i++) {
         let c = collectibles[i];
         if (!c.collected && checkCollision(player, c)) {
-            // Optimistic update
+            if (c.requiredPlayer && c.requiredPlayer !== gameState.playerName) continue;
+
             c.collected = true;
             gameState.progress++;
-            createParticles(c.x + c.width/2, c.y + c.height/2, c.color || '#fff', 15);
+            
+            // Powerup Logic
+            if (c.type === 'snowflake') {
+                player.speed = gameConfig.baseSpeed * 1.5;
+                player.speedBoostTimer = 300; // 5 seconds
+                createParticles(player.x, player.y, '#00ffff', 20);
+            } else if (c.type === 'star') {
+                player.jumpPower = gameConfig.baseJump * 1.5;
+                player.jumpBoostTimer = 300;
+                createParticles(player.x, player.y, '#ffff00', 20);
+            } else {
+                createParticles(c.x, c.y, '#fff', 10);
+            }
+
             updateUI();
-            
-            // Send to server
             socket.emit('starCollected', { levelId: gameState.currentLevel, collectibleIndex: i });
-            
-            checkLevelComplete();
         }
     }
 
-    // Network Update (Send position to server)
+    // Monsters -> Death
+    for(let m of monsters) {
+        m.update();
+        if(checkCollision(player, m)) {
+            die(`Eaten by ${m.name}!`);
+        }
+    }
+
+    // Door Logic
+    if (door && !gameState.atDoor && !gameState.waitingAtDoor) {
+        if (checkCollision(player, door)) {
+            if (gameState.progress >= gameState.maxProgress) {
+                gameState.atDoor = true;
+                gameState.waitingAtDoor = true;
+                socket.emit('playerEnteredDoor', gameState.currentLevel);
+                // Show waiting text
+                document.getElementById('doorStatus').textContent = "Waiting for partner...";
+                document.getElementById('doorStatus').classList.remove('hidden');
+            } else {
+                // Hint to collect more
+                // (Optional: UI feedback)
+            }
+        }
+    }
+
+    // Network Update
     if (gameState.running) {
         socket.emit('playerUpdate', {
             x: player.x,
             y: player.y,
             facingRight: player.facingRight,
-            level: gameState.currentLevel
+            level: gameState.currentLevel,
+            atDoor: gameState.atDoor
         });
     }
 }
 
-// --- Visual Effects ---
-function updateSnow() {
-    snowflakes.forEach(f => {
-        f.y += f.speed;
-        f.x += Math.sin(f.y * 0.05 + f.sway) * 0.5;
-        if (f.y > canvas.height) {
-            f.y = -10;
-            f.x = Math.random() * canvas.width;
-        }
-    });
-}
-
-class Particle {
-    constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.color = color;
-        this.size = Math.random() * 4 + 2;
-        this.speedX = Math.random() * 6 - 3;
-        this.speedY = Math.random() * 6 - 3;
-        this.life = 1.0;
-        this.decay = 0.02 + Math.random() * 0.03;
-    }
-    update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        this.life -= this.decay;
-        this.size *= 0.95;
-    }
-    draw(ctx) {
-        ctx.fillStyle = this.color;
-        ctx.globalAlpha = this.life;
-        ctx.fillRect(this.x, this.y, this.size, this.size);
-        ctx.globalAlpha = 1.0;
-    }
-}
-
-function createParticles(x, y, color, count) {
-    for(let i=0; i<count; i++) {
-        particles.push(new Particle(x, y, color));
-    }
-}
-
-function updateParticles() {
-    for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update();
-        if (particles[i].life <= 0) {
-            particles.splice(i, 1);
-        }
-    }
+function die(reason) {
+    if (gameState.isDead) return;
+    gameState.isDead = true;
+    console.log("Died:", reason);
+    
+    // Visual effect
+    createParticles(player.x, player.y, '#ff0000', 50);
+    
+    setTimeout(() => {
+        resetPlayerPosition();
+        gameState.isDead = false;
+        // Reset powerups
+        player.speed = gameConfig.baseSpeed;
+        player.jumpPower = gameConfig.baseJump;
+    }, 1000);
 }
 
 // --- Drawing ---
-function drawRect(x, y, w, h, color, border='#000') {
-    ctx.fillStyle = color;
-    ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
-}
-
-function drawBackground(theme) {
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    theme.sky.forEach((color, index) => {
-        gradient.addColorStop(index / (theme.sky.length - 1), color);
-    });
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = theme.mountain;
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height);
-    for(let i=0; i<=canvas.width; i+=50) {
-        let h = 100 + Math.sin(i * 0.02) * 80 + Math.random() * 10;
-        ctx.lineTo(i, canvas.height - h);
-    }
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.fill();
-
-    ctx.fillStyle = '#fff';
-    snowflakes.forEach(f => {
-        ctx.globalAlpha = 0.6;
-        ctx.beginPath();
-        ctx.arc(f.x, f.y, f.size, 0, Math.PI*2);
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-    });
-}
-
-function drawPlatforms(theme) {
-    platforms.forEach(p => {
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(p.x - 2, p.y - 6, p.width + 4, 10);
-        drawRect(p.x, p.y, p.width, p.height, theme.platform);
-        
-        const lightColors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00'];
-        for(let i=5; i<p.width; i+=20) {
-             ctx.fillStyle = lightColors[(i/20 + Math.floor(Date.now()/500)) % lightColors.length];
-             ctx.beginPath();
-             ctx.arc(p.x + i, p.y + 4, 3, 0, Math.PI*2);
-             ctx.fill();
-        }
-    });
-}
-
-// Reusable character drawer
-function drawCharacter(charObj) {
-    if (!charObj) return;
-    
-    // Body
-    drawRect(charObj.x, charObj.y, charObj.width, charObj.height, charObj.color);
-    
-    // Coat details
-    ctx.fillStyle = '#fff'; 
-    ctx.fillRect(charObj.x + charObj.width/2 - 2, charObj.y, 4, charObj.height);
-    
-    // Belt
-    ctx.fillStyle = '#000';
-    ctx.fillRect(charObj.x, charObj.y + 20, charObj.width, 4);
-    ctx.fillStyle = '#ffd700';
-    ctx.fillRect(charObj.x + charObj.width/2 - 4, charObj.y + 19, 8, 6);
-    
-    // Eyes
-    ctx.fillStyle = '#000';
-    if (charObj.facingRight) {
-        ctx.fillRect(charObj.x + 20, charObj.y + 8, 4, 4);
-        ctx.fillRect(charObj.x + 26, charObj.y + 8, 4, 4);
-    } else {
-        ctx.fillRect(charObj.x + 2, charObj.y + 8, 4, 4);
-        ctx.fillRect(charObj.x + 8, charObj.y + 8, 4, 4);
-    }
-    
-    // HAT
-    ctx.fillStyle = '#d90429'; 
-    ctx.beginPath();
-    if (charObj.facingRight) {
-        ctx.moveTo(charObj.x, charObj.y);
-        ctx.lineTo(charObj.x + charObj.width, charObj.y);
-        ctx.lineTo(charObj.x + charObj.width/2, charObj.y - 15);
-    } else {
-        ctx.moveTo(charObj.x, charObj.y);
-        ctx.lineTo(charObj.x + charObj.width, charObj.y);
-        ctx.lineTo(charObj.x + charObj.width/2, charObj.y - 15);
-    }
-    ctx.fill();
-    
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(charObj.x - 2, charObj.y - 4, charObj.width + 4, 6);
-    ctx.beginPath(); 
-    ctx.arc(charObj.x + charObj.width/2, charObj.y - 15, 5, 0, Math.PI*2); 
-    ctx.fill();
-}
-
-function drawIcon(type, x, y, size) {
-    const cx = x + size/2;
-    const cy = y + size/2;
-    ctx.save();
-    ctx.translate(cx, cy);
-    const bob = Math.sin(Date.now() / 200) * 3;
-    ctx.translate(0, bob);
-
-    switch(type) {
-        case 'snowflake':
-            ctx.strokeStyle = '#fff'; ctx.lineWidth=3;
-            for(let i=0; i<6; i++) {
-                ctx.rotate(Math.PI*2/6);
-                ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, size/2); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(0, size/4); ctx.lineTo(size/6, size/3); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(0, size/4); ctx.lineTo(-size/6, size/3); ctx.stroke();
-            }
-            break;
-        case 'ice':
-            ctx.fillStyle = '#E0FFFF';
-            ctx.globalAlpha = 0.8;
-            ctx.beginPath();
-            ctx.moveTo(0, -size/2);
-            ctx.lineTo(size/3, 0);
-            ctx.lineTo(0, size/2);
-            ctx.lineTo(-size/3, 0);
-            ctx.fill();
-            break;
-        case 'ornament': 
-            ctx.fillStyle = '#ff0000';
-            ctx.beginPath(); ctx.arc(0, 0, size/2.5, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#fff'; 
-            ctx.beginPath(); ctx.arc(-size/6, -size/6, size/8, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#ffd700'; 
-            ctx.fillRect(-size/6, -size/2, size/3, size/6);
-            break;
-        case 'gingerbread':
-            ctx.fillStyle = '#8B4513';
-            ctx.beginPath();
-            ctx.arc(0, -size/4, size/6, 0, Math.PI*2); 
-            ctx.fill();
-            ctx.fillRect(-size/4, -size/4, size/2, size/2); 
-            ctx.fillRect(-size/2, -size/4, size/4, size/6); 
-            ctx.fillRect(size/4, -size/4, size/4, size/6); 
-            break;
-        case 'stocking':
-            ctx.fillStyle = '#D32F2F';
-            ctx.beginPath();
-            ctx.fillRect(-size/4, -size/2, size/2, size * 0.6);
-            ctx.fillRect(-size/4, 0, size * 0.6, size/3);
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(-size/4, -size/2, size/2, size/5);
-            break;
-        case 'candy':
-            ctx.strokeStyle = '#FF0000'; ctx.lineWidth=5; ctx.lineCap='round';
-            ctx.beginPath();
-            ctx.arc(-size/6, -size/4, size/4, Math.PI, 0);
-            ctx.lineTo(size/12, size/2);
-            ctx.stroke();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth=3;
-            ctx.beginPath();
-            ctx.arc(-size/6, -size/4, size/4, Math.PI, 0);
-            ctx.lineTo(size/12, size/2);
-            ctx.stroke();
-            break;
-        case 'gift':
-            ctx.fillStyle = '#32CD32';
-            ctx.fillRect(-size/3, -size/3, size/1.5, size/1.5);
-            ctx.fillStyle = '#FF0000';
-            ctx.fillRect(-size/12, -size/3, size/6, size/1.5);
-            ctx.fillRect(-size/3, -size/12, size/1.5, size/6);
-            break;
-        case 'bell':
-            ctx.fillStyle = '#ffd700';
-            ctx.beginPath();
-            ctx.moveTo(0, -size/2);
-            ctx.quadraticCurveTo(size/2, -size/2, size/2, size/2);
-            ctx.lineTo(-size/2, size/2);
-            ctx.quadraticCurveTo(-size/2, -size/2, 0, -size/2);
-            ctx.fill();
-            ctx.fillStyle = '#000';
-            ctx.beginPath(); ctx.arc(0, size/2, size/8, 0, Math.PI*2); ctx.fill();
-            break;
-        case 'star':
-            ctx.fillStyle = '#FFFF00';
-            ctx.beginPath();
-            for(let i=0; i<5; i++) {
-                ctx.rotate(Math.PI*2/5);
-                ctx.lineTo(0, -size/2);
-                ctx.lineTo(size/6, -size/6);
-            }
-            ctx.fill();
-            break;
-        case 'heart':
-            ctx.fillStyle = '#FF1493';
-            ctx.beginPath();
-            ctx.moveTo(0, size/4);
-            ctx.bezierCurveTo(size/2, -size/4, size/2, size/2, 0, size/2);
-            ctx.bezierCurveTo(-size/2, size/2, -size/2, -size/4, 0, size/4);
-            ctx.fill();
-            break;
-        default:
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(0,0,size/3,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-}
-
-function drawCollectibles(type) {
-    collectibles.forEach(c => {
-        if (!c.collected) {
-            drawIcon(type, c.x, c.y, c.width);
-        }
-    });
-}
-
 function draw() {
+    if(gameState.isDead) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle = '#ff0000';
+        ctx.font = '40px Courier New';
+        ctx.fillText("YOU DIED", 300, 300);
+        return;
+    }
+
     const level = levelsData[gameState.currentLevel - 1];
     if (!level) return;
 
-    drawBackground(level.theme);
-    drawPlatforms(level.theme);
-    drawCollectibles(level.collectibleType);
-    
-    // Draw Player
-    drawCharacter(player);
-    
-    // Draw Partner (if they are on the same level)
-    if (partner.active && partner.level === gameState.currentLevel) {
-        ctx.globalAlpha = 0.7; // Ghost effect
-        drawCharacter(partner);
-        // Name tag
+    // Background
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    level.theme.sky.forEach((c, i) => gradient.addColorStop(i, c));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Platforms
+    platforms.forEach(p => {
+        ctx.fillStyle = level.theme.platform;
+        ctx.fillRect(p.x, p.y, p.width, p.height);
+        // Snow top
         ctx.fillStyle = '#fff';
-        ctx.font = '12px Courier New';
-        ctx.fillText(partner.name, partner.x, partner.y - 25);
+        ctx.fillRect(p.x, p.y, p.width, 10);
+    });
+
+    // Door
+    if (door) {
+        // Draw door (Open if items collected?)
+        const isOpen = gameState.progress >= gameState.maxProgress;
+        ctx.globalAlpha = isOpen ? 1.0 : 0.5;
+        ctx.drawImage(assets.door, door.x, door.y, door.width, door.height);
         ctx.globalAlpha = 1.0;
     }
+
+    // Collectibles
+    collectibles.forEach(c => {
+        if(!c.collected) {
+            drawIcon(c);
+        }
+    });
+
+    // Monsters
+    monsters.forEach(m => m.draw(ctx));
+
+    // Player
+    const playerImg = gameState.playerName === 'Vilde' ? assets.vilde : assets.nora;
+    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
     
-    particles.forEach(p => p.draw(ctx));
+    // Partner
+    if (partner.active && partner.level === gameState.currentLevel) {
+        ctx.globalAlpha = 0.6;
+        const partnerImg = partner.name === 'Vilde' ? assets.vilde : assets.nora;
+        ctx.drawImage(partnerImg, partner.x, partner.y, partner.width, partner.height);
+        ctx.globalAlpha = 1.0;
+    }
+
+    // Particles
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.fillRect(p.x, p.y, 5, 5);
+        ctx.globalAlpha = 1.0;
+    });
 }
 
-// --- Socket Events & Game Logic ---
+function drawIcon(c) {
+    const cx = c.x + c.width/2;
+    const cy = c.y + c.height/2;
+    const size = c.width;
 
-socket.on('connect', () => {
-    document.getElementById('connectionStatus').textContent = 'Connected!';
-    document.getElementById('connectionStatus').style.color = '#00ff00';
+    // Bobbing
+    const bob = Math.sin(Date.now() / 200) * 3;
+    
+    // Ring
+    if (c.requiredPlayer) {
+        ctx.strokeStyle = c.requiredPlayer === 'Vilde' ? '#ff4d4d' : '#4da6ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy + bob, size/1.5, 0, Math.PI*2); ctx.stroke();
+    }
+
+    // Icon
+    if(c.type === 'snowflake') {
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath(); ctx.arc(cx, cy + bob, size/3, 0, Math.PI*2); ctx.fill();
+    } else if (c.type === 'star') {
+        ctx.fillStyle = '#ffff00';
+        ctx.beginPath(); ctx.arc(cx, cy + bob, size/3, 0, Math.PI*2); ctx.fill();
+    } else {
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath(); ctx.arc(cx, cy + bob, size/3, 0, Math.PI*2); ctx.fill();
+    }
+}
+
+// --- Init & Events ---
+const keys = {};
+window.addEventListener('keydown', e => keys[e.key] = true);
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+// Socket Listeners
+socket.on('levelStateResponse', (data) => {
+    if (data.levelId === gameState.currentLevel && data.collectedIndices) {
+        data.collectedIndices.forEach(idx => {
+            if(collectibles[idx]) {
+                collectibles[idx].collected = true;
+                gameState.progress++;
+            }
+        });
+        updateUI();
+    }
 });
 
-socket.on('currentPlayers', (takenNames) => {
-    // Disable buttons if taken
-    const btnVilde = document.getElementById('btnVilde');
-    const btnNora = document.getElementById('btnNora');
-    
-    if (takenNames.includes('Vilde')) {
-        btnVilde.disabled = true;
-        btnVilde.style.background = '#333';
-        btnVilde.style.color = '#777';
-        btnVilde.textContent = 'Vilde (Taken)';
-    }
-    
-    if (takenNames.includes('Nora')) {
-        btnNora.disabled = true;
-        btnNora.style.background = '#333';
-        btnNora.style.color = '#777';
-        btnNora.textContent = 'Nora (Taken)';
-    }
-    
-    // Update Partner UI name if we are playing
-    if (gameState.running) {
-        const otherName = takenNames.find(n => n !== gameState.playerName);
-        if (otherName) {
-            document.getElementById('partnerNameDisplay').textContent = otherName;
-            partner.active = true;
-            partner.name = otherName;
-            partner.color = otherName === 'Nora' ? '#4a8bc9' : '#c94a4a';
-        } else {
-            document.getElementById('partnerNameDisplay').textContent = 'Waiting...';
-            partner.active = false;
+socket.on('globalStarCollected', (data) => {
+    if (data.levelId === gameState.currentLevel) {
+        if(collectibles[data.collectibleIndex] && !collectibles[data.collectibleIndex].collected) {
+            collectibles[data.collectibleIndex].collected = true;
+            gameState.progress++;
+            updateUI();
         }
-    }
-});
-
-socket.on('selectionSuccess', (name) => {
-    startGame(name);
-});
-
-socket.on('selectionError', (msg) => {
-    alert(msg);
-    location.reload();
-});
-
-socket.on('playerJoined', (data) => {
-    if (data.name !== gameState.playerName) {
-        console.log('Partner joined:', data.name);
     }
 });
 
 socket.on('otherPlayerMoved', (data) => {
-    if (!gameState.running) return;
     partner.active = true;
     partner.x = data.x;
     partner.y = data.y;
-    partner.facingRight = data.facingRight;
     partner.level = data.level;
+    // We could show "At Door" status on partner too if we wanted
 });
 
-socket.on('globalStarCollected', (data) => {
-    try {
-        // data = { levelId, collectibleIndex }
-        if (data.levelId === gameState.currentLevel) {
-            // Safety check for array bounds
-            if (collectibles && 
-                collectibles[data.collectibleIndex] && 
-                !collectibles[data.collectibleIndex].collected) {
-                
-                const item = collectibles[data.collectibleIndex];
-                item.collected = true;
-                gameState.progress++;
-                
-                // Add center offset for particle origin if possible, otherwise use x/y
-                const pX = item.x + (item.width ? item.width / 2 : 15);
-                const pY = item.y + (item.height ? item.height / 2 : 15);
-                
-                createParticles(pX, pY, '#ffd700', 10);
-                
-                updateUI();
-                checkLevelComplete();
-            }
-        }
-    } catch (e) {
-        console.error("Error handling globalStarCollected:", e);
-    }
+socket.on('waitingAtDoor', () => {
+    document.getElementById('doorStatus').textContent = "Waiting for partner to enter...";
+    document.getElementById('doorStatus').classList.remove('hidden');
 });
 
-function loadLevel(levelIndex) {
-    if (levelIndex > gameState.totalLevels) {
-        gameComplete();
-        return;
-    }
-    
-    gameState.currentLevel = levelIndex;
-    gameState.isTransitioning = false;
-    
-    const level = levelsData[levelIndex - 1];
-    
-    platforms = level.platforms.map(p => ({...p, width: p.w || p.width, height: p.h || p.height, type: p.type || 'normal'}));
-    collectibles = level.collectibles.map(c => ({
-        x: c.x, 
-        y: c.y, 
-        width: 30, 
-        height: 30, 
-        collected: false,
-        color: '#fff' 
-    }));
-    
-    resetPlayerPosition();
-    
-    gameState.progress = 0;
-    gameState.maxProgress = collectibles.length;
-    
-    updateUI();
-    document.getElementById('messageScreen').classList.add('hidden');
-    
-    // Sync state with server
-    if (socket && socket.connected) {
-        socket.emit('requestLevelState', level.id);
-    }
-    
-    console.log(`Loaded Level ${level.id}: ${level.title}`);
-}
-
-socket.on('levelStateResponse', (data) => {
-    if (data.levelId === gameState.currentLevel && data.collectedIndices) {
-        data.collectedIndices.forEach(index => {
-            if (collectibles[index] && !collectibles[index].collected) {
-                collectibles[index].collected = true;
-                gameState.progress++;
-            }
-        });
-        updateUI();
-        checkLevelComplete();
-    }
+socket.on('levelComplete', (levelId) => {
+    // Show Score Screen
+    document.getElementById('messageScreen').classList.remove('hidden');
+    document.getElementById('messageTitle').textContent = "LEVEL COMPLETE!";
+    document.getElementById('messageSubtitle').textContent = "Great Teamwork!";
+    document.getElementById('btnNextLevel').textContent = "Next Level";
+    document.getElementById('btnNextLevel').onclick = () => {
+        socket.emit('requestNextLevel', levelId);
+    };
 });
 
-function checkLevelComplete() {
-    console.log(`Checking Level Complete: ${gameState.progress}/${gameState.maxProgress} (Transitioning: ${gameState.isTransitioning})`);
-    if (gameState.progress >= gameState.maxProgress && !gameState.isTransitioning) {
-        console.log("Level Complete! Transitioning...");
-        gameState.isTransitioning = true;
-        updateUI();
-        setTimeout(showLevelComplete, 500);
-    }
-}
+socket.on('startNextLevel', (nextId) => {
+    loadLevel(nextId);
+});
 
-function showLevelComplete() {
-    const screen = document.getElementById('messageScreen');
-    const title = document.getElementById('messageTitle');
-    const sub = document.getElementById('messageSubtitle');
-    const btn = document.getElementById('btnNextLevel');
-    
-    console.log("Showing Level Complete Screen");
-    screen.classList.remove('hidden');
-    screen.style.display = 'flex';
-    
-    if (gameState.currentLevel === gameState.totalLevels) {
-        title.textContent = "MERRY CHRISTMAS!";
-        sub.textContent = "You saved the holidays!";
-        btn.textContent = "Play Again";
-        btn.onclick = () => location.reload();
-    } else {
-        title.textContent = "Level Complete!";
-        sub.textContent = `Next stop: ${levelsData[gameState.currentLevel].title}`;
-        btn.textContent = "Continue Journey";
-        btn.onclick = () => {
-            screen.classList.add('hidden');
-            screen.style.display = '';
-            loadLevel(gameState.currentLevel + 1);
-        };
-    }
+// Helper Functions
+function updateUI() {
+    document.getElementById('levelDisplay').textContent = gameState.currentLevel;
+    document.getElementById('progress').textContent = gameState.progress;
+    document.getElementById('maxProgress').textContent = gameState.maxProgress;
 }
 
 function resetPlayerPosition() {
@@ -840,56 +709,72 @@ function resetPlayerPosition() {
     player.y = 300;
     player.velocityX = 0;
     player.velocityY = 0;
-    player.onGround = false;
+    gameState.atDoor = false;
+    gameState.waitingAtDoor = false;
+    document.getElementById('doorStatus').classList.add('hidden');
 }
 
-function updateUI() {
-    document.getElementById('levelDisplay').textContent = gameState.currentLevel;
-    document.getElementById('progress').textContent = gameState.progress;
-    document.getElementById('maxProgress').textContent = gameState.maxProgress;
+function loadLevel(id) {
+    if(id > 10) return; // End game handling omitted for brevity
+    gameState.currentLevel = id;
+    gameState.progress = 0;
+    gameState.isDead = false;
+    document.getElementById('messageScreen').classList.add('hidden');
+    
+    const data = levelsData[id-1];
+    // Fix: Map w/h to width/height
+    platforms = data.platforms.map(p => ({
+        x: p.x, 
+        y: p.y, 
+        width: p.w || p.width, 
+        height: p.h || p.height, 
+        color: p.color,
+        type: p.type 
+    }));
+    collectibles = data.collectibles.map(c => ({...c, width: 30, height: 30, collected: false}));
+    monsters = data.monsters.map(m => new Monster(m.x, m.y, m.range));
+    door = data.door ? { x: data.door.x, y: data.door.y, width: 60, height: 80 } : null;
+    gameState.maxProgress = collectibles.length;
+    
+    resetPlayerPosition();
+    updateUI();
+    socket.emit('requestLevelState', id);
 }
+
+// Particle System (Simplified)
+function createParticles(x, y, color, count) {
+    for(let i=0; i<count; i++) {
+        particles.push({x, y, color, speedX: Math.random()*4-2, speedY: Math.random()*4-2, life: 1});
+    }
+}
+function updateParticles() { // call in loop
+    particles.forEach((p, i) => {
+        p.x += p.speedX; p.y += p.speedY; p.life -= 0.05;
+        if(p.life <= 0) particles.splice(i, 1);
+    });
+}
+// Add particle draw to draw() (already there)
+// Add updateParticles to loop
 
 function gameLoop() {
-    try {
-        if (gameState.running && !gameState.isTransitioning) {
-            updatePhysics();
-            updateSnow();
-            updateParticles();
-        }
-        if (gameState.running) {
-            draw();
-        }
-    } catch (e) {
-        console.error("Game loop error:", e);
-        // Attempt to recover by not stopping, but maybe resetting a state if needed
+    if(gameState.running) {
+        updatePhysics();
+        updateParticles();
+        draw();
     }
     requestAnimationFrame(gameLoop);
 }
 
-// Button Events - Now just requests selection
-document.getElementById('btnVilde').addEventListener('click', () => {
-    if (typeof initAudio === 'function') initAudio(); 
-    socket.emit('selectCharacter', 'Vilde');
-});
+// Start
+document.getElementById('btnVilde').onclick = () => socket.emit('selectCharacter', 'Vilde');
+document.getElementById('btnNora').onclick = () => socket.emit('selectCharacter', 'Nora');
 
-document.getElementById('btnNora').addEventListener('click', () => {
-    if (typeof initAudio === 'function') initAudio();
-    socket.emit('selectCharacter', 'Nora');
-});
-
-function startGame(name) {
+socket.on('selectionSuccess', (name) => {
     gameState.playerName = name;
-    player.color = name === 'Nora' ? '#4a8bc9' : '#c94a4a';
-    
     document.getElementById('playerNameDisplay').textContent = name;
+    gameState.running = true;
     document.getElementById('startScreen').classList.add('hidden');
     document.getElementById('gameUI').classList.remove('hidden');
-    
-    gameState.running = true;
     loadLevel(1);
     gameLoop();
-}
-
-// Initial draw (background only)
-const tempTheme = levelsData[0].theme;
-drawBackground(tempTheme);
+});

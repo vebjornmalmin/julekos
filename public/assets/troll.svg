@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect x="10" y="10" width="80" height="80" rx="10" fill="#556b2f" stroke="#2f4f4f" stroke-width="5"/>
+  <path d="M 20 30 L 40 40 L 20 50 Z" fill="#2f4f4f"/> <!-- Left Brow -->
+  <path d="M 80 30 L 60 40 L 80 50 Z" fill="#2f4f4f"/> <!-- Right Brow -->
+  <circle cx="35" cy="50" r="5" fill="#ff0000"/> <!-- Red Eye -->
+  <circle cx="65" cy="50" r="5" fill="#ff0000"/> <!-- Red Eye -->
+  <rect x="45" y="55" width="10" height="15" fill="#2f4f4f"/> <!-- Nose -->
+  <path d="M 30 75 Q 50 65 70 75" stroke="#000" stroke-width="3" fill="none"/> <!-- Frown -->
+  <path d="M 30 80 L 35 70 L 40 80 L 45 70 L 50 80" fill="#fff"/> <!-- Teeth -->
+</svg>

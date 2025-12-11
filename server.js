@@ -16,6 +16,10 @@ const players = {}; // socket.id -> { name, x, y, frame, facingRight, level }
 // levelId -> Set of integer indices
 const levelState = {}; 
 
+// Track players who are "ready" for the next level
+// levelId -> Set of socket IDs
+const levelCompletion = {};
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
@@ -70,7 +74,7 @@ io.on('connection', (socket) => {
         }
     });
     
-    // New: Allow client to ask for current level state
+    // Allow client to ask for current level state
     socket.on('requestLevelState', (levelId) => {
         if (levelState[levelId]) {
             const collectedIndices = Array.from(levelState[levelId]);
@@ -78,10 +82,52 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Handle Door Logic
+    socket.on('playerEnteredDoor', (levelId) => {
+        if (!levelCompletion[levelId]) {
+            levelCompletion[levelId] = new Set();
+        }
+        
+        levelCompletion[levelId].add(socket.id);
+        
+        const currentPlayersCount = Object.keys(players).length;
+        const readyPlayersCount = levelCompletion[levelId].size;
+        
+        console.log(`Level ${levelId}: ${readyPlayersCount}/${currentPlayersCount} players at door.`);
+        
+        // Notify the player they are waiting
+        socket.emit('waitingAtDoor');
+
+        // Check if everyone is ready
+        if (readyPlayersCount >= currentPlayersCount) {
+            console.log(`All players at door for Level ${levelId}. Completing...`);
+            io.emit('levelComplete', levelId); // Trigger score screen
+            
+            // Auto-start next level after a brief delay or let them click "Continue"?
+            // User requirement: "Level progress only happens when both players walk through the door"
+            // So hitting the door = Level Complete.
+            // Then we can show the score screen and let them click "Next Level".
+        }
+    });
+
+    socket.on('requestNextLevel', (currentLevelId) => {
+        // Simple relay to start next level for everyone if one person clicks continue?
+        // Or require voting again? Let's just make "Continue" start it for everyone for simplicity
+        io.emit('startNextLevel', currentLevelId + 1);
+    });
+
     socket.on('disconnect', () => {
         if (players[socket.id]) {
             console.log(`Player ${players[socket.id].name} disconnected`);
             delete players[socket.id];
+            
+            // Remove from completion sets to avoid deadlocks
+            for (const lvl in levelCompletion) {
+                if (levelCompletion[lvl].has(socket.id)) {
+                    levelCompletion[lvl].delete(socket.id);
+                }
+            }
+            
             io.emit('playerLeft', socket.id);
             io.emit('currentPlayers', Object.values(players).map(p => p.name));
         }

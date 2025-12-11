@@ -39,8 +39,12 @@
             <div class="ui-right">
                 <div class="hud-panel">Team Score: <span id="progress">0</span>/<span id="maxProgress">0</span></div>
             </div>
-            <div class="instructions">
-                <p>← → Move | Space/Up Jump</p>
+            <!-- Door Status Notification -->
+            <div id="doorStatus" class="instructions hidden" style="top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); font-size: 24px; color: gold; border: 2px solid white;">
+                Waiting for partner...
+            </div>
+            <div class="instructions" style="bottom: 10px;">
+                <p>← → Move | Space/Up Jump | Avoid Trolls!</p>
             </div>
         </div>
     </div>
