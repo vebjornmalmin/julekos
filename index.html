@@ -3,16 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Surprise Adventure Game</title>
+    <title>Holiday Adventure</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
     <div class="game-container">
-        <div class="ui">
-            <div class="score">Progress: <span id="progress">0</span>/10</div>
+        <!-- Start Screen -->
+        <div id="startScreen" class="overlay-screen">
+            <h1>Holiday Adventure</h1>
+            <h2>Choose Your Character</h2>
+            <div class="player-selection">
+                <button class="btn" id="btnVilde">Vilde</button>
+                <button class="btn" id="btnNora">Nora</button>
+            </div>
+        </div>
+
+        <!-- Level Transition / Message Screen -->
+        <div id="messageScreen" class="overlay-screen hidden">
+            <h1 id="messageTitle">Level Complete!</h1>
+            <h2 id="messageSubtitle">Get Ready...</h2>
+            <button class="btn" id="btnNextLevel">Continue</button>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- Game HUD -->
+        <div class="ui hidden" id="gameUI">
+            <div class="ui-left">
+                <div class="hud-panel">Player: <span id="playerNameDisplay"></span></div>
+                <div class="hud-panel">Level: <span id="levelDisplay">1</span>/10</div>
+            </div>
+            <div class="ui-right">
+                <div class="hud-panel">Collected: <span id="progress">0</span>/<span id="maxProgress">0</span></div>
+            </div>
             <div class="instructions">
-                <p>Use ← → to move, Space to jump</p>
+                <p>← → Move | Space/Up Jump</p>
             </div>
         </div>
     </div>
@@ -20,5 +45,3 @@
     <script src="game.js"></script>
 </body>
 </html>
-
-

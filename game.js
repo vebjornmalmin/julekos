@@ -2,17 +2,27 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Set canvas size
 canvas.width = 800;
 canvas.height = 600;
 
-// Game state
-const gameState = {
-    progress: 0,
-    maxProgress: 10
+// Game Configuration & State
+const gameConfig = {
+    gravity: 0.6,
+    terminalVelocity: 15,
+    friction: 0.8
 };
 
-// Player object - Japanese-inspired character
+const gameState = {
+    currentLevel: 1,
+    totalLevels: 10,
+    progress: 0,
+    maxProgress: 0,
+    running: false,
+    playerName: '',
+    isTransitioning: false
+};
+
+// Player Object
 const player = {
     x: 50,
     y: 300,
@@ -20,47 +30,223 @@ const player = {
     height: 32,
     velocityX: 0,
     velocityY: 0,
-    speed: 5,
-    jumpPower: 20,
+    speed: 6,
+    jumpPower: 18,
     onGround: false,
-    color: '#c94a4a', // Japanese red
-    accentColor: '#2c1810' // Dark brown for details
+    color: '#c94a4a',
+    accentColor: '#2c1810',
+    facingRight: true
 };
 
-// Platforms - Stone/mountain ledges with Japanese aesthetic
-const platforms = [
-    { x: 0, y: 550, width: 200, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 250, y: 500, width: 150, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 450, y: 450, width: 150, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 650, y: 400, width: 150, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 200, y: 350, width: 100, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 400, y: 300, width: 150, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 600, y: 250, width: 150, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 100, y: 200, width: 100, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 500, y: 150, width: 150, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' },
-    { x: 0, y: 100, width: 200, height: 50, color: '#6b5b4f', borderColor: '#4a3d32' }
+// Current Level Data
+let platforms = [];
+let collectibles = [];
+let particles = []; // Visual effects
+let snowflakes = []; // Global snow effect
+
+// Initialize snowflakes
+for(let i=0; i<100; i++) {
+    snowflakes.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 3 + 1,
+        speed: Math.random() * 2 + 1,
+        sway: Math.random() * 0.5
+    });
+}
+
+// --- Level Design Data ---
+const ground = { x: 0, y: 550, width: 800, height: 50, color: '#fff', type: 'snow_ground' };
+
+const levelsData = [
+    {
+        id: 1,
+        title: "Snowy Departure",
+        theme: { sky: ['#0d1b2a', '#1b263b', '#415a77'], mountain: '#778da9', platform: '#e0e1dd', accent: '#778da9' },
+        collectibleType: 'snowflake',
+        platforms: [
+            ground,
+            { x: 200, y: 450, w: 150, h: 40 },
+            { x: 450, y: 350, w: 150, h: 40 },
+            { x: 100, y: 250, w: 100, h: 40 },
+            { x: 300, y: 150, w: 200, h: 40 },
+            { x: 600, y: 250, w: 150, h: 40 }
+        ],
+        collectibles: [
+            { x: 250, y: 400 }, { x: 500, y: 300 }, { x: 120, y: 200 }, { x: 350, y: 100 }, { x: 650, y: 200 }
+        ]
+    },
+    {
+        id: 2,
+        title: "Frozen Lake",
+        theme: { sky: ['#caf0f8', '#90e0ef', '#00b4d8'], mountain: '#0077b6', platform: '#e0fbfc', accent: '#98c1d9' },
+        collectibleType: 'ice',
+        platforms: [
+            ground,
+            { x: 50, y: 450, w: 100, h: 30 },
+            { x: 250, y: 400, w: 100, h: 30 },
+            { x: 450, y: 350, w: 100, h: 30 },
+            { x: 650, y: 300, w: 100, h: 30 },
+            { x: 350, y: 200, w: 100, h: 30 },
+            { x: 150, y: 150, w: 100, h: 30 }
+        ],
+        collectibles: [
+            { x: 70, y: 400 }, { x: 270, y: 350 }, { x: 470, y: 300 }, { x: 670, y: 250 }, { x: 370, y: 150 }, { x: 170, y: 100 }
+        ]
+    },
+    {
+        id: 3,
+        title: "Pine Forest",
+        theme: { sky: ['#004b23', '#006400', '#007200'], mountain: '#38b000', platform: '#2d6a4f', accent: '#1b4332' },
+        collectibleType: 'ornament', // Changed from leaf
+        platforms: [
+            ground,
+            { x: 0, y: 400, w: 200, h: 40 },
+            { x: 600, y: 400, w: 200, h: 40 },
+            { x: 300, y: 300, w: 200, h: 40 },
+            { x: 100, y: 200, w: 150, h: 40 },
+            { x: 550, y: 200, w: 150, h: 40 },
+            { x: 350, y: 100, w: 100, h: 40 }
+        ],
+        collectibles: [
+            { x: 100, y: 350 }, { x: 700, y: 350 }, { x: 400, y: 250 }, { x: 175, y: 150 }, { x: 625, y: 150 }, { x: 400, y: 50 }
+        ]
+    },
+    {
+        id: 4,
+        title: "Candy Cane Lane", // Renamed
+        theme: { sky: ['#d90429', '#ef233c', '#edf2f4'], mountain: '#8d99ae', platform: '#ffffff', accent: '#d90429' },
+        collectibleType: 'candy',
+        platforms: [
+            ground,
+            { x: 100, y: 500, w: 50, h: 200 }, // Pillars
+            { x: 300, y: 400, w: 50, h: 200 },
+            { x: 500, y: 300, w: 50, h: 300 },
+            { x: 700, y: 200, w: 50, h: 400 },
+            { x: 200, y: 350, w: 80, h: 20 }
+        ],
+        collectibles: [
+            { x: 115, y: 450 }, { x: 315, y: 350 }, { x: 515, y: 250 }, { x: 715, y: 150 }, { x: 240, y: 300 }
+        ]
+    },
+    {
+        id: 5,
+        title: "Gingerbread Village", // Renamed
+        theme: { sky: ['#432818', '#664229', '#99582a'], mountain: '#bb9457', platform: '#8B4513', accent: '#ffe6a7' },
+        collectibleType: 'gingerbread', // New type
+        platforms: [
+            ground,
+            { x: 0, y: 150, w: 100, h: 20 },
+            { x: 150, y: 250, w: 100, h: 20 },
+            { x: 300, y: 350, w: 100, h: 20 },
+            { x: 450, y: 450, w: 100, h: 20 },
+            { x: 600, y: 350, w: 100, h: 20 },
+            { x: 700, y: 200, w: 100, h: 20 },
+            { x: 350, y: 100, w: 50, h: 20 }
+        ],
+        collectibles: [
+            { x: 20, y: 100 }, { x: 170, y: 200 }, { x: 320, y: 300 }, { x: 470, y: 400 }, { x: 620, y: 300 }, { x: 720, y: 150 }, { x: 360, y: 50 }
+        ]
+    },
+    {
+        id: 6,
+        title: "Cozy Hearth",
+        theme: { sky: ['#590d22', '#800f2f', '#a4133c'], mountain: '#3E2723', platform: '#5D4037', accent: '#D2691E' },
+        collectibleType: 'stocking',
+        platforms: [
+            ground,
+            { x: 50, y: 480, w: 80, h: 20 },
+            { x: 150, y: 400, w: 80, h: 20 },
+            { x: 250, y: 320, w: 80, h: 20 },
+            { x: 400, y: 250, w: 300, h: 30 }, // Mantle
+            { x: 750, y: 350, w: 50, h: 20 }
+        ],
+        collectibles: [
+            { x: 80, y: 430 }, { x: 180, y: 350 }, { x: 280, y: 270 }, { x: 420, y: 200 }, { x: 500, y: 200 }, { x: 580, y: 200 }, { x: 660, y: 200 }
+        ]
+    },
+    {
+        id: 7,
+        title: "Elf Workshop",
+        theme: { sky: ['#2b9348', '#55a630', '#80b918'], mountain: '#004b23', platform: '#aacc00', accent: '#d90429' },
+        collectibleType: 'gift',
+        platforms: [
+            ground,
+            { x: 100, y: 500, w: 100, h: 20 },
+            { x: 300, y: 500, w: 100, h: 20 },
+            { x: 500, y: 500, w: 100, h: 20 },
+            { x: 200, y: 350, w: 400, h: 20 },
+            { x: 100, y: 200, w: 100, h: 20 },
+            { x: 600, y: 200, w: 100, h: 20 },
+            { x: 350, y: 100, w: 100, h: 20 }
+        ],
+        collectibles: [
+            { x: 130, y: 450 }, { x: 330, y: 450 }, { x: 530, y: 450 }, { x: 250, y: 300 }, { x: 450, y: 300 }, { x: 130, y: 150 }, { x: 630, y: 150 }, { x: 380, y: 50 }
+        ]
+    },
+    {
+        id: 8,
+        title: "Reindeer Stables",
+        theme: { sky: ['#3c096c', '#5a189a', '#7b2cbf'], mountain: '#240046', platform: '#9d4edd', accent: '#e0aaff' },
+        collectibleType: 'bell', // New type
+        platforms: [
+            ground,
+            { x: 0, y: 450, w: 150, h: 50 },
+            { x: 650, y: 450, w: 150, h: 50 },
+            { x: 200, y: 350, w: 100, h: 20 },
+            { x: 500, y: 350, w: 100, h: 20 },
+            { x: 300, y: 250, w: 200, h: 20 },
+            { x: 350, y: 150, w: 100, h: 20 }
+        ],
+        collectibles: [
+            { x: 50, y: 400 }, { x: 700, y: 400 }, { x: 230, y: 300 }, { x: 530, y: 300 }, { x: 350, y: 200 }, { x: 400, y: 200 }, { x: 380, y: 100 }
+        ]
+    },
+    {
+        id: 9,
+        title: "Silent Night",
+        theme: { sky: ['#000000', '#14213d', '#fca311'], mountain: '#000000', platform: '#e5e5e5', accent: '#fca311' },
+        collectibleType: 'star',
+        platforms: [
+            ground,
+            { x: 100, y: 450, w: 50, h: 10 },
+            { x: 200, y: 400, w: 50, h: 10 },
+            { x: 300, y: 350, w: 50, h: 10 },
+            { x: 400, y: 300, w: 50, h: 10 },
+            { x: 500, y: 250, w: 50, h: 10 },
+            { x: 600, y: 200, w: 50, h: 10 },
+            { x: 700, y: 150, w: 50, h: 10 }
+        ],
+        collectibles: [
+            { x: 110, y: 400 }, { x: 210, y: 350 }, { x: 310, y: 300 }, { x: 410, y: 250 }, { x: 510, y: 200 }, { x: 610, y: 150 }, { x: 710, y: 100 }
+        ]
+    },
+    {
+        id: 10,
+        title: "North Pole Summit",
+        theme: { sky: ['#ff0000', '#ff8700', '#ffd300', '#deff0a', '#a1ff0a', '#0aff99', '#0aefff', '#147df5', '#580aff', '#be0aff'], mountain: '#ffffff', platform: '#ffffff', accent: '#ff0000' },
+        collectibleType: 'heart',
+        platforms: [
+            ground,
+            { x: 300, y: 450, w: 200, h: 20 },
+            { x: 200, y: 350, w: 50, h: 20 },
+            { x: 550, y: 350, w: 50, h: 20 },
+            { x: 100, y: 250, w: 50, h: 20 },
+            { x: 650, y: 250, w: 50, h: 20 },
+            { x: 350, y: 150, w: 100, h: 20 } // Summit
+        ],
+        collectibles: [
+            { x: 350, y: 400 }, { x: 400, y: 400 }, { x: 215, y: 300 }, { x: 565, y: 300 }, { x: 115, y: 200 }, { x: 665, y: 200 }, { x: 380, y: 100 }, { x: 400, y: 100 }, { x: 360, y: 100 }
+        ]
+    }
 ];
 
-// Collectibles - Cherry blossoms (sakura)
-const collectibles = [
-    { x: 300, y: 450, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 500, y: 400, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 700, y: 350, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 250, y: 300, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 450, y: 250, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 650, y: 200, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 150, y: 150, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 550, y: 100, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 100, y: 50, width: 20, height: 20, collected: false, color: '#ffb7c5' },
-    { x: 700, y: 50, width: 20, height: 20, collected: false, color: '#ffb7c5' }
-];
-
-// Input handling
+// --- Input Handling ---
 const keys = {};
 
 window.addEventListener('keydown', (e) => {
     keys[e.key] = true;
-    if (e.key === ' ' || e.key === 'ArrowUp') {
+    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
     }
 });
@@ -69,7 +255,7 @@ window.addEventListener('keyup', (e) => {
     keys[e.key] = false;
 });
 
-// Collision detection
+// --- Physics ---
 function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width &&
            rect1.x + rect1.width > rect2.x &&
@@ -77,249 +263,489 @@ function checkCollision(rect1, rect2) {
            rect1.y + rect1.height > rect2.y;
 }
 
-// Physics and movement
-function updatePlayer() {
-    // Horizontal movement
+function updatePhysics() {
+    // Horizontal
     if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
         player.velocityX = -player.speed;
+        player.facingRight = false;
     } else if (keys['ArrowRight'] || keys['d'] || keys['D']) {
         player.velocityX = player.speed;
+        player.facingRight = true;
     } else {
-        player.velocityX *= 0.8; // Friction
+        player.velocityX *= gameConfig.friction;
     }
 
-    // Jumping
+    // Jump
     if ((keys[' '] || keys['ArrowUp'] || keys['w'] || keys['W']) && player.onGround) {
         player.velocityY = -player.jumpPower;
         player.onGround = false;
+        createParticles(player.x + player.width/2, player.y + player.height, '#fff', 5); // Jump snow
     }
 
-    // Apply gravity
-    player.velocityY += 0.6; // Gravity strength
-    player.velocityY = Math.min(player.velocityY, 15); // Terminal velocity
+    // Gravity
+    player.velocityY += gameConfig.gravity;
+    if (player.velocityY > gameConfig.terminalVelocity) player.velocityY = gameConfig.terminalVelocity;
 
-    // Update position
+    // Apply Velocity
     player.x += player.velocityX;
     player.y += player.velocityY;
 
-    // Check platform collisions
+    // Platform Collisions
     player.onGround = false;
     for (let platform of platforms) {
         if (checkCollision(player, platform)) {
-            // Landing on top of platform
-            if (player.velocityY > 0 && player.y < platform.y) {
+            // Landing
+            if (player.velocityY > 0 && player.y + player.height - player.velocityY <= platform.y) {
                 player.y = platform.y - player.height;
                 player.velocityY = 0;
                 player.onGround = true;
             }
-            // Hitting platform from below
-            else if (player.velocityY < 0 && player.y > platform.y) {
+            // Hitting head
+            else if (player.velocityY < 0 && player.y - player.velocityY >= platform.y + platform.height) {
                 player.y = platform.y + platform.height;
                 player.velocityY = 0;
             }
             // Side collisions
-            else if (player.velocityX > 0) {
+            else if (player.velocityX > 0 && player.x + player.width - player.velocityX <= platform.x) {
                 player.x = platform.x - player.width;
                 player.velocityX = 0;
-            } else if (player.velocityX < 0) {
+            } else if (player.velocityX < 0 && player.x - player.velocityX >= platform.x + platform.width) {
                 player.x = platform.x + platform.width;
                 player.velocityX = 0;
             }
         }
     }
 
-    // Boundary checks
+    // Boundaries
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-    if (player.y + player.height > canvas.height) {
-        player.y = canvas.height - player.height;
-        player.velocityY = 0;
-        player.onGround = true;
+    if (player.y > canvas.height) {
+        // Fall off screen - respawn
+        resetPlayerPosition();
     }
 
-    // Check collectible collisions
-    for (let collectible of collectibles) {
-        if (!collectible.collected && checkCollision(player, collectible)) {
-            collectible.collected = true;
+    // Collectibles
+    for (let i = 0; i < collectibles.length; i++) {
+        let c = collectibles[i];
+        if (!c.collected && checkCollision(player, c)) {
+            c.collected = true;
             gameState.progress++;
-            updateProgress();
+            createParticles(c.x + c.width/2, c.y + c.height/2, c.color || '#fff', 15);
+            updateUI();
+            checkLevelComplete();
         }
     }
 }
 
-// Update progress display
-function updateProgress() {
-    document.getElementById('progress').textContent = gameState.progress;
-    
-    // When all collectibles are collected, you can add a reveal here
-    if (gameState.progress >= gameState.maxProgress) {
-        // TODO: Add trip reveal logic here
-        console.log('All collectibles collected! Ready for trip reveal!');
+// --- Visual Effects ---
+function updateSnow() {
+    snowflakes.forEach(f => {
+        f.y += f.speed;
+        f.x += Math.sin(f.y * 0.05 + f.sway) * 0.5;
+        
+        if (f.y > canvas.height) {
+            f.y = -10;
+            f.x = Math.random() * canvas.width;
+        }
+    });
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.size = Math.random() * 4 + 2;
+        this.speedX = Math.random() * 6 - 3;
+        this.speedY = Math.random() * 6 - 3;
+        this.life = 1.0;
+        this.decay = 0.02 + Math.random() * 0.03;
+    }
+    update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.life -= this.decay;
+        this.size *= 0.95;
+    }
+    draw(ctx) {
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = this.life;
+        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.globalAlpha = 1.0;
     }
 }
 
-// Rendering
-function drawPixelRect(x, y, width, height, color, borderColor = '#000') {
-    ctx.fillStyle = color;
-    ctx.fillRect(Math.floor(x), Math.floor(y), width, height);
-    
-    // Add pixelated border
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(Math.floor(x), Math.floor(y), width, height);
+function createParticles(x, y, color, count) {
+    for(let i=0; i<count; i++) {
+        particles.push(new Particle(x, y, color));
+    }
 }
 
-function drawMountainBackground() {
-    // Sky gradient - dawn/dusk colors
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        if (particles[i].life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+// --- Drawing ---
+function drawRect(x, y, w, h, color, border='#000') {
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
+}
+
+function drawBackground(theme) {
+    // Gradient Sky
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, '#ffd4b3'); // Light peach/orange
-    gradient.addColorStop(0.3, '#ffb3ba'); // Soft pink
-    gradient.addColorStop(0.6, '#b3d9ff'); // Light blue
-    gradient.addColorStop(1, '#8c6b5f'); // Mountain base color
-    
+    theme.sky.forEach((color, index) => {
+        gradient.addColorStop(index / (theme.sky.length - 1), color);
+    });
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw distant mountain silhouettes
-    ctx.fillStyle = '#6b5b4f';
+
+    // Mountains
+    ctx.fillStyle = theme.mountain;
     ctx.beginPath();
     ctx.moveTo(0, canvas.height);
-    ctx.lineTo(0, 400);
-    ctx.lineTo(150, 350);
-    ctx.lineTo(300, 380);
-    ctx.lineTo(450, 320);
-    ctx.lineTo(600, 360);
-    ctx.lineTo(750, 340);
-    ctx.lineTo(canvas.width, 370);
+    for(let i=0; i<=canvas.width; i+=50) {
+        let h = 100 + Math.sin(i * 0.02) * 80 + Math.random() * 10;
+        ctx.lineTo(i, canvas.height - h);
+    }
     ctx.lineTo(canvas.width, canvas.height);
-    ctx.closePath();
     ctx.fill();
-    
-    // Add darker mountain layer for depth
-    ctx.fillStyle = '#4a3d32';
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height);
-    ctx.lineTo(0, 450);
-    ctx.lineTo(200, 400);
-    ctx.lineTo(400, 420);
-    ctx.lineTo(600, 380);
-    ctx.lineTo(canvas.width, 400);
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Draw some clouds (simple pixelated)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    drawCloud(100, 80, 40);
-    drawCloud(300, 60, 35);
-    drawCloud(550, 90, 45);
-    drawCloud(700, 50, 30);
+
+    // Snowflakes (Background)
+    ctx.fillStyle = '#fff';
+    snowflakes.forEach(f => {
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.size, 0, Math.PI*2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    });
 }
 
-function drawCloud(x, y, size) {
-    ctx.fillRect(x, y, size, size / 2);
-    ctx.fillRect(x + size / 3, y - size / 3, size / 2, size / 2);
-    ctx.fillRect(x + size * 2 / 3, y, size / 2, size / 2);
+function drawPlatforms(theme) {
+    platforms.forEach(p => {
+        // Snow topper
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(p.x - 2, p.y - 6, p.width + 4, 10);
+        
+        // Main block
+        drawRect(p.x, p.y, p.width, p.height, theme.platform);
+        
+        // Christmas Lights Decor
+        const lightColors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00'];
+        for(let i=5; i<p.width; i+=20) {
+             ctx.fillStyle = lightColors[(i/20 + Math.floor(Date.now()/500)) % lightColors.length];
+             ctx.beginPath();
+             ctx.arc(p.x + i, p.y + 4, 3, 0, Math.PI*2);
+             ctx.fill();
+        }
+    });
 }
 
 function drawPlayer() {
-    // Japanese-inspired pixelated character
-    // Body (red kimono-like)
-    drawPixelRect(player.x, player.y + 16, player.width, player.height - 16, player.color);
+    const p = player;
     
-    // Head
-    ctx.fillStyle = '#f4d4a4'; // Skin tone
-    ctx.fillRect(Math.floor(player.x + 6), Math.floor(player.y), 20, 18);
-    ctx.strokeStyle = '#2c1810';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(Math.floor(player.x + 6), Math.floor(player.y), 20, 18);
+    // Body
+    drawRect(p.x, p.y, p.width, p.height, p.color);
     
-    // Hair (black)
-    ctx.fillStyle = '#2c1810';
-    ctx.fillRect(Math.floor(player.x + 4), Math.floor(player.y + 2), 24, 8);
+    // Elf/Santa Coat details
+    ctx.fillStyle = '#fff'; // White trim vertical
+    ctx.fillRect(p.x + p.width/2 - 2, p.y, 4, p.height);
+    
+    // Belt
+    ctx.fillStyle = '#000';
+    ctx.fillRect(p.x, p.y + 20, p.width, 4);
+    ctx.fillStyle = '#ffd700'; // Gold Buckle
+    ctx.fillRect(p.x + p.width/2 - 4, p.y + 19, 8, 6);
     
     // Eyes
-    ctx.fillStyle = '#2c1810';
-    ctx.fillRect(Math.floor(player.x + 10), Math.floor(player.y + 6), 3, 3);
-    ctx.fillRect(Math.floor(player.x + 19), Math.floor(player.y + 6), 3, 3);
+    ctx.fillStyle = '#000';
+    if (p.facingRight) {
+        ctx.fillRect(p.x + 20, p.y + 8, 4, 4);
+        ctx.fillRect(p.x + 26, p.y + 8, 4, 4);
+    } else {
+        ctx.fillRect(p.x + 2, p.y + 8, 4, 4);
+        ctx.fillRect(p.x + 8, p.y + 8, 4, 4);
+    }
     
-    // Belt/obi
-    ctx.fillStyle = player.accentColor;
-    ctx.fillRect(Math.floor(player.x + 8), Math.floor(player.y + 20), 16, 4);
-}
-
-function drawPlatforms() {
-    for (let platform of platforms) {
-        // Main platform
-        drawPixelRect(platform.x, platform.y, platform.width, platform.height, platform.color, platform.borderColor);
-        
-        // Add some texture/details (moss or stone texture)
-        ctx.fillStyle = 'rgba(90, 120, 80, 0.3)'; // Moss green overlay
-        ctx.fillRect(Math.floor(platform.x + 5), Math.floor(platform.y + 5), platform.width - 10, 8);
-        
-        // Highlight edge
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.fillRect(Math.floor(platform.x), Math.floor(platform.y), platform.width, 2);
+    // SANTA HAT
+    ctx.fillStyle = '#d90429'; // Red hat
+    ctx.beginPath();
+    if (p.facingRight) {
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + p.width, p.y);
+        ctx.lineTo(p.x + p.width/2, p.y - 15); // Pointy top
+    } else {
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + p.width, p.y);
+        ctx.lineTo(p.x + p.width/2, p.y - 15);
     }
+    ctx.fill();
+    
+    // Hat White Trim
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x - 2, p.y - 4, p.width + 4, 6); // Base trim
+    ctx.beginPath(); 
+    ctx.arc(p.x + p.width/2, p.y - 15, 5, 0, Math.PI*2); // Pom pom
+    ctx.fill();
 }
 
-function drawCollectibles() {
-    for (let collectible of collectibles) {
-        if (!collectible.collected) {
-            // Draw cherry blossom (sakura) - 5 petals
-            const centerX = collectible.x + collectible.width / 2;
-            const centerY = collectible.y + collectible.height / 2;
-            const radius = collectible.width / 2;
-            
-            ctx.fillStyle = collectible.color;
-            ctx.beginPath();
-            
-            // Draw 5 petals
-            for (let i = 0; i < 5; i++) {
-                const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
-                const petalX = centerX + Math.cos(angle) * radius * 0.6;
-                const petalY = centerY + Math.sin(angle) * radius * 0.6;
-                
-                // Simple petal shape (ellipse)
-                ctx.ellipse(petalX, petalY, radius * 0.4, radius * 0.6, angle, 0, Math.PI * 2);
+function drawIcon(type, x, y, size) {
+    const cx = x + size/2;
+    const cy = y + size/2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    
+    // Bobbing animation
+    const bob = Math.sin(Date.now() / 200) * 3;
+    ctx.translate(0, bob);
+
+    switch(type) {
+        case 'snowflake':
+            ctx.strokeStyle = '#fff'; ctx.lineWidth=3;
+            for(let i=0; i<6; i++) {
+                ctx.rotate(Math.PI*2/6);
+                ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0, size/2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, size/4); ctx.lineTo(size/6, size/3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, size/4); ctx.lineTo(-size/6, size/3); ctx.stroke();
             }
-            
-            // Center of flower
-            ctx.fill();
-            ctx.fillStyle = '#ff6b9d';
+            break;
+        case 'ice':
+            ctx.fillStyle = '#E0FFFF';
+            ctx.globalAlpha = 0.8;
             ctx.beginPath();
-            ctx.arc(centerX, centerY, radius * 0.3, 0, Math.PI * 2);
+            ctx.moveTo(0, -size/2);
+            ctx.lineTo(size/3, 0);
+            ctx.lineTo(0, size/2);
+            ctx.lineTo(-size/3, 0);
             ctx.fill();
-            
-            // Outline
-            ctx.strokeStyle = '#c94a4a';
-            ctx.lineWidth = 1;
+            break;
+        case 'ornament': // Round shiny ball
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath(); ctx.arc(0, 0, size/2.5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; // Shine
+            ctx.beginPath(); ctx.arc(-size/6, -size/6, size/8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ffd700'; // Cap
+            ctx.fillRect(-size/6, -size/2, size/3, size/6);
+            break;
+        case 'gingerbread':
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.arc(0, -size/4, size/6, 0, Math.PI*2); // Head
+            ctx.fill();
+            ctx.fillRect(-size/4, -size/4, size/2, size/2); // Body
+            ctx.fillRect(-size/2, -size/4, size/4, size/6); // Left Arm
+            ctx.fillRect(size/4, -size/4, size/4, size/6); // Right Arm
+            break;
+        case 'stocking':
+            ctx.fillStyle = '#D32F2F';
+            ctx.beginPath();
+            ctx.fillRect(-size/4, -size/2, size/2, size * 0.6);
+            ctx.fillRect(-size/4, 0, size * 0.6, size/3);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-size/4, -size/2, size/2, size/5);
+            break;
+        case 'candy':
+            ctx.strokeStyle = '#FF0000'; ctx.lineWidth=5; ctx.lineCap='round';
+            ctx.beginPath();
+            ctx.arc(-size/6, -size/4, size/4, Math.PI, 0);
+            ctx.lineTo(size/12, size/2);
             ctx.stroke();
-        }
+            ctx.strokeStyle = '#fff'; ctx.lineWidth=3;
+            ctx.beginPath();
+            ctx.arc(-size/6, -size/4, size/4, Math.PI, 0);
+            ctx.lineTo(size/12, size/2);
+            ctx.stroke();
+            break;
+        case 'gift':
+            ctx.fillStyle = '#32CD32';
+            ctx.fillRect(-size/3, -size/3, size/1.5, size/1.5);
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(-size/12, -size/3, size/6, size/1.5);
+            ctx.fillRect(-size/3, -size/12, size/1.5, size/6);
+            break;
+        case 'bell':
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.moveTo(0, -size/2);
+            ctx.quadraticCurveTo(size/2, -size/2, size/2, size/2);
+            ctx.lineTo(-size/2, size/2);
+            ctx.quadraticCurveTo(-size/2, -size/2, 0, -size/2);
+            ctx.fill();
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.arc(0, size/2, size/8, 0, Math.PI*2); ctx.fill();
+            break;
+        case 'star':
+            ctx.fillStyle = '#FFFF00';
+            ctx.beginPath();
+            for(let i=0; i<5; i++) {
+                ctx.rotate(Math.PI*2/5);
+                ctx.lineTo(0, -size/2);
+                ctx.lineTo(size/6, -size/6);
+            }
+            ctx.fill();
+            break;
+        case 'heart':
+            ctx.fillStyle = '#FF1493';
+            ctx.beginPath();
+            ctx.moveTo(0, size/4);
+            ctx.bezierCurveTo(size/2, -size/4, size/2, size/2, 0, size/2);
+            ctx.bezierCurveTo(-size/2, size/2, -size/2, -size/4, 0, size/4);
+            ctx.fill();
+            break;
+        default:
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(0,0,size/3,0,Math.PI*2); ctx.fill();
     }
+    ctx.restore();
+}
+
+function drawCollectibles(type) {
+    collectibles.forEach(c => {
+        if (!c.collected) {
+            drawIcon(type, c.x, c.y, c.width);
+        }
+    });
 }
 
 function draw() {
-    // Draw Japanese mountain background
-    drawMountainBackground();
-    
-    // Draw platforms
-    drawPlatforms();
-    
-    // Draw collectibles
-    drawCollectibles();
-    
-    // Draw player
+    const level = levelsData[gameState.currentLevel - 1];
+    if (!level) return;
+
+    drawBackground(level.theme);
+    drawPlatforms(level.theme);
+    drawCollectibles(level.collectibleType);
     drawPlayer();
+    
+    particles.forEach(p => p.draw(ctx));
 }
 
-// Game loop
+// --- Game Logic ---
+
+function loadLevel(levelIndex) {
+    if (levelIndex > gameState.totalLevels) {
+        gameComplete();
+        return;
+    }
+    
+    gameState.currentLevel = levelIndex;
+    gameState.isTransitioning = false;
+    
+    const level = levelsData[levelIndex - 1];
+    
+    // Deep copy platforms and collectibles to avoid modifying the template
+    platforms = level.platforms.map(p => ({...p, width: p.w || p.width, height: p.h || p.height, type: p.type || 'normal'}));
+    collectibles = level.collectibles.map(c => ({
+        x: c.x, 
+        y: c.y, 
+        width: 30, 
+        height: 30, 
+        collected: false,
+        color: '#fff' // Placeholder, drawing uses type
+    }));
+    
+    // Reset player
+    resetPlayerPosition();
+    
+    // Reset Progress
+    gameState.progress = 0;
+    gameState.maxProgress = collectibles.length;
+    
+    updateUI();
+    
+    // Hide Overlay
+    document.getElementById('messageScreen').classList.add('hidden');
+    
+    console.log(`Loaded Level ${level.id}: ${level.title}`);
+}
+
+function resetPlayerPosition() {
+    player.x = 50;
+    player.y = 300;
+    player.velocityX = 0;
+    player.velocityY = 0;
+    player.onGround = false;
+}
+
+function updateUI() {
+    document.getElementById('levelDisplay').textContent = gameState.currentLevel;
+    document.getElementById('progress').textContent = gameState.progress;
+    document.getElementById('maxProgress').textContent = gameState.maxProgress;
+}
+
+function checkLevelComplete() {
+    if (gameState.progress >= gameState.maxProgress && !gameState.isTransitioning) {
+        gameState.isTransitioning = true;
+        setTimeout(showLevelComplete, 500);
+    }
+}
+
+function showLevelComplete() {
+    const screen = document.getElementById('messageScreen');
+    const title = document.getElementById('messageTitle');
+    const sub = document.getElementById('messageSubtitle');
+    const btn = document.getElementById('btnNextLevel');
+    
+    screen.classList.remove('hidden');
+    
+    if (gameState.currentLevel === gameState.totalLevels) {
+        title.textContent = "MERRY CHRISTMAS!";
+        sub.textContent = "You saved the holidays!";
+        btn.textContent = "Play Again";
+        btn.onclick = () => location.reload();
+    } else {
+        title.textContent = "Level Complete!";
+        sub.textContent = `Next stop: ${levelsData[gameState.currentLevel].title}`;
+        btn.textContent = "Continue Journey";
+        btn.onclick = () => loadLevel(gameState.currentLevel + 1);
+    }
+}
+
+function gameComplete() {
+    showLevelComplete();
+}
+
 function gameLoop() {
-    updatePlayer();
-    draw();
+    if (gameState.running && !gameState.isTransitioning) {
+        updatePhysics();
+        updateSnow();
+        updateParticles();
+    }
+    if (gameState.running) {
+        draw();
+    }
     requestAnimationFrame(gameLoop);
 }
 
-// Start the game
-gameLoop();
+// --- Init ---
 
+document.getElementById('btnVilde').addEventListener('click', () => startGame('Vilde'));
+document.getElementById('btnNora').addEventListener('click', () => startGame('Nora'));
+
+function startGame(name) {
+    gameState.playerName = name;
+    player.color = name === 'Nora' ? '#4a8bc9' : '#c94a4a';
+    
+    document.getElementById('playerNameDisplay').textContent = name;
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('gameUI').classList.remove('hidden');
+    
+    gameState.running = true;
+    
+    // Initialize audio on start (this ensures user interaction)
+    if (typeof initAudio === 'function') {
+        initAudio(); 
+    }
+    
+    loadLevel(1);
+    gameLoop();
+}
+
+// Initial draw (background only)
+const tempTheme = levelsData[0].theme;
+drawBackground(tempTheme);
