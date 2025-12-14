@@ -8,6 +8,7 @@ body {
     font-family: 'Courier New', monospace;
     background: #0f2a1d; /* Dark Christmas Green */
     display: flex;
+    flex-direction: column; /* Changed to column to stack game and info vertically */
     justify-content: center;
     align-items: center;
     min-height: 100vh;
@@ -27,6 +28,54 @@ body {
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
+    max-width: 100%; /* Responsive scaling */
+    height: auto;    /* Maintain aspect ratio */
+}
+
+/* ... (rest of the file) */
+
+/* Mobile Controls Styling */
+#mobile-controls {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    width: 100%;
+    justify-content: space-between;
+    padding: 0 40px;
+    z-index: 100;
+    pointer-events: none;
+}
+
+@media (max-width: 1024px) {
+    #mobile-controls {
+        display: flex;
+    }
+}
+
+.d-pad, .action-pad {
+    display: flex;
+    gap: 20px;
+    pointer-events: auto;
+}
+
+#mobile-controls button {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 30px;
+    font-weight: bold;
+    touch-action: manipulation; /* Prevent browser zoom/scroll */
+    user-select: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#mobile-controls button:active {
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0.95);
 }
 
 .ui {
@@ -59,11 +108,9 @@ body {
 
 /* Add a little holly decoration via pseudo-elements later if needed */
 
+/* Instructions inside game container (like doorStatus) */
 .instructions {
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
+    position: absolute; /* Keep absolute for in-game messages */
     background: rgba(179, 45, 41, 0.9); /* Red Background */
     padding: 6px 10px;
     border-radius: 4px;
@@ -72,6 +119,7 @@ body {
     border: 1px solid #ffd700; /* Gold Border */
     box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
+
 
 /* Screens (Start, Level Complete, etc.) */
 .overlay-screen {
@@ -154,4 +202,25 @@ body {
 
 .pulse {
     animation: pulse 1s infinite;
+}
+
+/* New styling for the outside info container */
+#outside-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px; /* Space between outside elements */
+    margin-top: 20px; /* Space from game container */
+}
+
+.ui-outside-element {
+    /* General styling for elements outside */
+    max-width: 1200px; /* Constrain width */
+    width: 100%; /* Take full width of parent */
+    text-align: center;
+}
+
+.ui-outside-element.hud-panel {
+    /* Override hud-panel specific styles if needed for outside elements */
+    position: static; /* Remove absolute positioning */
 }

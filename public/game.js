@@ -1,32 +1,16 @@
-const socket = io();
+import { gameConfig, assets } from './modules/Config.js';
+import { Monster } from './modules/Monster.js';
+import { levelsData } from './modules/Levels.js';
 
-// Assets
-const assets = {
-    vilde: new Image(),
-    nora: new Image(),
-    troll: new Image(),
-    door: new Image()
-};
-assets.vilde.src = 'assets/vilde.svg';
-assets.nora.src = 'assets/nora.svg';
-assets.troll.src = 'assets/troll.svg';
-assets.door.src = 'assets/door.svg';
+const socket = io(); // Global io from script tag
 
 // Game Canvas Setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-canvas.width = 800;
-canvas.height = 600;
+canvas.width = 1200;
+canvas.height = 800;
 
-// Game Configuration
-const gameConfig = {
-    gravity: 0.6,
-    terminalVelocity: 15,
-    friction: 0.8,
-    baseSpeed: 6,
-    baseJump: 18
-};
 
 const gameState = {
     currentLevel: 1,
@@ -87,307 +71,6 @@ for(let i=0; i<100; i++) {
         sway: Math.random() * 0.5
     });
 }
-
-// --- Classes ---
-class Monster {
-    constructor(x, y, range) {
-        this.x = x;
-        this.y = y;
-        this.width = 40;
-        this.height = 40;
-        this.startX = x;
-        this.range = range;
-        this.speed = 2;
-        this.direction = 1;
-        this.name = Math.random() > 0.5 ? 'Vebjørn' : 'Vetle';
-    }
-
-    update() {
-        this.x += this.speed * this.direction;
-        if (this.x > this.startX + this.range || this.x < this.startX) {
-            this.direction *= -1;
-        }
-    }
-
-    draw(ctx) {
-        ctx.drawImage(assets.troll, this.x, this.y, this.width, this.height);
-        // Name tag
-        ctx.fillStyle = '#ff0000';
-        ctx.font = '10px Courier New';
-        ctx.fillText(this.name, this.x, this.y - 5);
-    }
-}
-
-// --- Level Design ---
-const ground = { x: 0, y: 550, width: 800, height: 50, color: '#fff', type: 'snow_ground' };
-
-// We'll define just the first 2 levels detailed for now, keeping the others simple
-const levelsData = [
-    {
-        id: 1,
-        title: "Troll Bridge (Tutorial)",
-        theme: { sky: ['#0d1b2a', '#1b263b'], mountain: '#778da9', platform: '#e0e1dd' },
-        platforms: [
-            ground,
-            { x: 200, y: 450, w: 400, h: 40 },
-            { x: 100, y: 300, w: 150, h: 40 },
-            { x: 550, y: 300, w: 150, h: 40 }
-        ],
-        collectibles: [
-            { x: 300, y: 400, type: 'snowflake', requiredPlayer: 'Vilde' }, // Speed
-            { x: 500, y: 400, type: 'star', requiredPlayer: 'Nora' },       // Jump
-            { x: 150, y: 250, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 600, y: 250, type: 'coin', requiredPlayer: 'Nora' }
-        ],
-        monsters: [
-            { x: 350, y: 410, range: 100 }
-        ],
-        door: { x: 700, y: 460 }
-    },
-    {
-        id: 2,
-        title: "Icy Peaks",
-        theme: { sky: ['#caf0f8', '#0077b6'], mountain: '#0077b6', platform: '#e0fbfc' },
-        platforms: [
-            ground,
-            { x: 100, y: 450, w: 100, h: 30 },
-            { x: 600, y: 450, w: 100, h: 30 },
-            { x: 350, y: 350, w: 100, h: 30 },
-            { x: 150, y: 250, w: 100, h: 30 },
-            { x: 550, y: 250, w: 100, h: 30 },
-            { x: 350, y: 150, w: 100, h: 30 }
-        ],
-        collectibles: [
-            { x: 120, y: 400, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 620, y: 400, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 370, y: 300, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 170, y: 200, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 570, y: 200, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 370, y: 100, type: 'coin', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 200, y: 510, range: 400 } // Ground patroller
-        ],
-        door: { x: 370, y: 70 } // Very top
-    },
-    {
-        id: 3,
-        title: "Split Paths",
-        theme: { sky: ['#000000', '#2a9d8f'], mountain: '#264653', platform: '#2a9d8f' },
-        platforms: [
-            ground,
-            // Left Tower
-            { x: 50, y: 400, w: 100, h: 30 },
-            { x: 50, y: 250, w: 100, h: 30 },
-            { x: 50, y: 100, w: 200, h: 30 },
-            // Right Tower
-            { x: 650, y: 400, w: 100, h: 30 },
-            { x: 650, y: 250, w: 100, h: 30 },
-            { x: 550, y: 100, w: 200, h: 30 }
-        ],
-        collectibles: [
-            // Left side for Vilde
-            { x: 70, y: 350, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 70, y: 200, type: 'star', requiredPlayer: 'Vilde' },
-            // Right side for Nora
-            { x: 670, y: 350, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 670, y: 200, type: 'star', requiredPlayer: 'Nora' },
-            // Top shared
-            { x: 400, y: 50, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 450, y: 50, type: 'snowflake', requiredPlayer: 'Nora' }
-        ],
-        monsters: [
-            { x: 300, y: 510, range: 200 },
-            { x: 60, y: 60, range: 100 }, // On top left
-            { x: 600, y: 60, range: 100 } // On top right
-        ],
-        door: { x: 370, y: 460 } // Middle ground (must climb down or fall safely)
-    },
-    {
-        id: 4,
-        title: "Monster Mash",
-        theme: { sky: ['#590d22', '#ff4d6d'], mountain: '#800f2f', platform: '#a4133c' },
-        platforms: [
-            ground,
-            { x: 0, y: 400, w: 800, h: 30 }, // Second floor
-            { x: 100, y: 250, w: 600, h: 30 }, // Third floor
-            { x: 350, y: 150, w: 100, h: 30 }  // Top perch
-        ],
-        collectibles: [
-            { x: 50, y: 350, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 750, y: 350, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 150, y: 200, type: 'star', requiredPlayer: 'Nora' },
-            { x: 650, y: 200, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 400, y: 100, type: 'coin', requiredPlayer: 'Nora' }
-        ],
-        monsters: [
-            { x: 100, y: 510, range: 600 }, // Ground
-            { x: 50, y: 360, range: 700 }, // Second floor
-            { x: 150, y: 210, range: 500 } // Third floor
-        ],
-        door: { x: 370, y: 70 } // Very top
-    },
-    {
-        id: 5,
-        title: "Leap of Faith",
-        theme: { sky: ['#e9c46a', '#f4a261'], mountain: '#e76f51', platform: '#264653' },
-        platforms: [
-            ground,
-            { x: 0, y: 450, w: 100, h: 30 },
-            { x: 200, y: 450, w: 50, h: 30 }, // Small
-            { x: 350, y: 400, w: 50, h: 30 }, // Small
-            { x: 500, y: 350, w: 50, h: 30 }, // Small
-            { x: 650, y: 300, w: 50, h: 30 }, // Small
-            { x: 400, y: 200, w: 200, h: 30 } // Top
-        ],
-        collectibles: [
-            { x: 215, y: 400, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 365, y: 350, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 515, y: 300, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 665, y: 250, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 450, y: 150, type: 'snowflake', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 400, y: 160, range: 150 } // Guarding the door
-        ],
-        door: { x: 500, y: 120 }
-    },
-    {
-        id: 6,
-        title: "Troll Cave",
-        theme: { sky: ['#000000', '#14213d'], mountain: '#000000', platform: '#3d405b' },
-        platforms: [
-            ground,
-            { x: 0, y: 100, w: 800, h: 50 }, // Ceiling
-            { x: 100, y: 450, w: 200, h: 30 },
-            { x: 500, y: 450, w: 200, h: 30 },
-            { x: 300, y: 300, w: 200, h: 30 },
-            { x: 100, y: 200, w: 50, h: 30 },
-            { x: 650, y: 200, w: 50, h: 30 }
-        ],
-        collectibles: [
-            { x: 150, y: 400, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 600, y: 400, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 400, y: 250, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 115, y: 150, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 665, y: 150, type: 'coin', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 300, y: 510, range: 200 },
-            { x: 100, y: 410, range: 150 },
-            { x: 500, y: 410, range: 150 },
-            { x: 300, y: 260, range: 150 }
-        ],
-        door: { x: 370, y: 460 } // Bottom center, protected
-    },
-    {
-        id: 7,
-        title: "Speedway",
-        theme: { sky: ['#00b4d8', '#90e0ef'], mountain: '#caf0f8', platform: '#0077b6' },
-        platforms: [
-            ground,
-            { x: 0, y: 450, w: 300, h: 30 },
-            { x: 400, y: 400, w: 400, h: 30 },
-            { x: 0, y: 300, w: 300, h: 30 },
-            { x: 400, y: 200, w: 400, h: 30 },
-            { x: 0, y: 100, w: 200, h: 30 }
-        ],
-        collectibles: [
-            { x: 50, y: 400, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 750, y: 350, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 50, y: 250, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 750, y: 150, type: 'star', requiredPlayer: 'Nora' },
-            { x: 50, y: 50, type: 'coin', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 400, y: 360, range: 350 },
-            { x: 0, y: 260, range: 250 },
-            { x: 400, y: 160, range: 350 }
-        ],
-        door: { x: 50, y: 20 } // Top left
-    },
-    {
-        id: 8,
-        title: "The Vertical Limit",
-        theme: { sky: ['#ffb703', '#fb8500'], mountain: '#023047', platform: '#8ecae6' },
-        platforms: [
-            ground,
-            { x: 350, y: 450, w: 100, h: 20 },
-            { x: 200, y: 350, w: 100, h: 20 },
-            { x: 500, y: 350, w: 100, h: 20 },
-            { x: 350, y: 250, w: 100, h: 20 },
-            { x: 100, y: 150, w: 100, h: 20 },
-            { x: 600, y: 150, w: 100, h: 20 },
-            { x: 350, y: 50, w: 100, h: 20 }
-        ],
-        collectibles: [
-            { x: 390, y: 400, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 240, y: 300, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 540, y: 300, type: 'star', requiredPlayer: 'Nora' },
-            { x: 390, y: 200, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 140, y: 100, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 640, y: 100, type: 'coin', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 0, y: 510, range: 800 } // Floor is lava (monsters everywhere)
-        ],
-        door: { x: 370, y: -30 } // Top platform
-    },
-    {
-        id: 9,
-        title: "Silent Night (Hard)",
-        theme: { sky: ['#000', '#111'], mountain: '#222', platform: '#333' },
-        platforms: [
-            ground,
-            { x: 100, y: 500, w: 50, h: 50 }, // Pillars
-            { x: 250, y: 400, w: 50, h: 50 },
-            { x: 400, y: 300, w: 50, h: 50 },
-            { x: 550, y: 200, w: 50, h: 50 },
-            { x: 700, y: 100, w: 50, h: 50 }
-        ],
-        collectibles: [
-            { x: 115, y: 450, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 265, y: 350, type: 'star', requiredPlayer: 'Nora' },
-            { x: 415, y: 250, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 565, y: 150, type: 'star', requiredPlayer: 'Nora' },
-            { x: 715, y: 50, type: 'coin', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 300, y: 510, range: 400 },
-            { x: 250, y: 360, range: 0 }, // Static monster on block? No range 0
-            { x: 400, y: 260, range: 0 }
-        ],
-        door: { x: 700, y: 20 }
-    },
-    {
-        id: 10,
-        title: "North Pole Summit",
-        theme: { sky: ['#fff', '#d90429'], mountain: '#2c1810', platform: '#d90429' },
-        platforms: [
-            ground,
-            { x: 0, y: 400, w: 200, h: 20 },
-            { x: 600, y: 400, w: 200, h: 20 },
-            { x: 300, y: 300, w: 200, h: 20 },
-            { x: 100, y: 200, w: 100, h: 20 },
-            { x: 600, y: 200, w: 100, h: 20 },
-            { x: 300, y: 100, w: 200, h: 20 }
-        ],
-        collectibles: [
-            { x: 50, y: 350, type: 'heart', requiredPlayer: 'Vilde' },
-            { x: 750, y: 350, type: 'heart', requiredPlayer: 'Nora' },
-            { x: 400, y: 250, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 150, y: 150, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 650, y: 150, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 400, y: 50, type: 'heart', requiredPlayer: 'Nora' }
-        ],
-        monsters: [
-            { x: 0, y: 510, range: 800 }, // Chaos on floor
-            { x: 300, y: 260, range: 150 }, // Middle guard
-            { x: 300, y: 60, range: 150 } // Top guard
-        ],
-        door: { x: 370, y: 20 }
-    }
-];
 
 // --- Physics & Logic ---
 
@@ -490,11 +173,27 @@ function updatePhysics() {
         }
     }
 
-    // Monsters -> Death
-    for(let m of monsters) {
+    // Monsters -> Interaction (Stomp or Die)
+    for(let i = monsters.length - 1; i >= 0; i--) {
+        let m = monsters[i];
         m.update();
         if(checkCollision(player, m)) {
-            die(`Eaten by ${m.name}!`);
+            // Check for stomp: Falling down and hitting the top half of the monster
+            const hittingTop = player.velocityY > 0 && (player.y + player.height) < (m.y + m.height * 0.5);
+            
+            if (hittingTop) {
+                // Bounce
+                player.velocityY = -10;
+                m.health--;
+                createParticles(m.x + m.width/2, m.y, '#fff', 10); // Hit effect
+
+                if (m.health <= 0) {
+                    createParticles(m.x + m.width/2, m.y + m.height/2, '#555', 30); // Death effect
+                    monsters.splice(i, 1);
+                }
+            } else {
+                die(`Eaten by ${m.name}!`);
+            }
         }
     }
 
@@ -699,10 +398,16 @@ socket.on('startNextLevel', (nextId) => {
 
 // Helper Functions
 function updateUI() {
-    document.getElementById('levelDisplay').textContent = gameState.currentLevel;
+    // Update the level display outside the game canvas
+    const levelDisplayOutside = document.getElementById('levelDisplayOutside');
+    if (levelDisplayOutside) {
+        levelDisplayOutside.textContent = gameState.currentLevel;
+    }
+    // Update progress inside the game canvas
     document.getElementById('progress').textContent = gameState.progress;
     document.getElementById('maxProgress').textContent = gameState.maxProgress;
 }
+
 
 function resetPlayerPosition() {
     player.x = 50;
@@ -732,7 +437,7 @@ function loadLevel(id) {
         type: p.type 
     }));
     collectibles = data.collectibles.map(c => ({...c, width: 30, height: 30, collected: false}));
-    monsters = data.monsters.map(m => new Monster(m.x, m.y, m.range));
+    monsters = data.monsters.map(m => new Monster(m.x, m.y, m.range, m.name));
     door = data.door ? { x: data.door.x, y: data.door.y, width: 60, height: 80 } : null;
     gameState.maxProgress = collectibles.length;
     
@@ -765,13 +470,87 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
+// Mobile/Touch Controls
+function setupTouchControls() {
+    const bindBtn = (id, key) => {
+        const btn = document.getElementById(id);
+        if (!btn) {
+            console.log(`Button ${id} not found`);
+            return;
+        }
+        const setKey = (state) => {
+            // console.log(`Key ${key} set to ${state}`); // Debug log
+            if (key === 'ArrowLeft') {
+                keys['ArrowLeft'] = state;
+                keys['a'] = state; 
+            } else if (key === 'ArrowRight') {
+                keys['ArrowRight'] = state;
+                keys['d'] = state;
+            } else if (key === ' ') {
+                keys[' '] = state;
+                keys['ArrowUp'] = state;
+                keys['w'] = state;
+            }
+        };
+        
+        btn.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); // Prevent scrolling/zoom
+            setKey(true); 
+        }, {passive: false});
+        
+        btn.addEventListener('touchend', (e) => { 
+            e.preventDefault(); 
+            setKey(false); 
+        }, {passive: false});
+
+        btn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            setKey(false);
+        }, {passive: false});
+
+        // Mouse fallbacks for testing on desktop
+        btn.addEventListener('mousedown', () => setKey(true));
+        btn.addEventListener('mouseup', () => setKey(false));
+        btn.addEventListener('mouseleave', () => setKey(false));
+    };
+
+    bindBtn('btnLeft', 'ArrowLeft');
+    bindBtn('btnRight', 'ArrowRight');
+    bindBtn('btnJump', ' ');
+}
+
 // Start
+setupTouchControls();
 document.getElementById('btnVilde').onclick = () => socket.emit('selectCharacter', 'Vilde');
 document.getElementById('btnNora').onclick = () => socket.emit('selectCharacter', 'Nora');
 
+// Debugger: Level Jump
+const levelSelect = document.getElementById('levelJump');
+const debugPanelOutside = document.getElementById('debugPanelOutside'); // Reference the new outside panel
+
+if (window.DEBUG_MODE && debugPanelOutside && levelSelect) {
+    debugPanelOutside.style.display = 'block'; // Ensure it's visible if debug mode is on
+    levelsData.forEach(level => {
+        const option = document.createElement('option');
+        option.value = level.id;
+        option.textContent = `${level.id}: ${level.title}`;
+        levelSelect.appendChild(option);
+    });
+
+    levelSelect.addEventListener('change', (e) => {
+        const levelId = parseInt(e.target.value);
+        if (levelId && !isNaN(levelId)) {
+            console.log("Debug Jump to Level:", levelId);
+            loadLevel(levelId);
+            levelSelect.blur();
+        }
+    });
+} else if (debugPanelOutside) {
+    debugPanelOutside.style.display = 'none'; // Hide if debug mode is off
+}
+
 socket.on('selectionSuccess', (name) => {
     gameState.playerName = name;
-    document.getElementById('playerNameDisplay').textContent = name;
     gameState.running = true;
     document.getElementById('startScreen').classList.add('hidden');
     document.getElementById('gameUI').classList.remove('hidden');

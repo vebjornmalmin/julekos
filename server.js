@@ -2,10 +2,25 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+// Serve index.html with DEBUG_MODE injected
+app.get('/', (req, res) => {
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    fs.readFile(indexPath, 'utf8', (err, html) => {
+        if (err) {
+            console.error('Error reading index.html:', err);
+            return res.status(500).send('Error loading page');
+        }
+        const debugScript = `<script>window.DEBUG_MODE = ${process.env.DEBUG_MODE === 'true'};</script>`;
+        const modifiedHtml = html.replace('<!-- DEBUG_MODE_SCRIPT_PLACEHOLDER -->', debugScript);
+        res.send(modifiedHtml);
+    });
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 

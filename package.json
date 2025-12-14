@@ -4,7 +4,7 @@
   "description": "Christmas Adventure Game",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "DEBUG_MODE=$DEBUG_MODE node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

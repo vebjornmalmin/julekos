@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Holiday Adventure: Vilde & Nora</title>
     <link rel="stylesheet" href="style.css">
     <script src="/socket.io/socket.io.js"></script>
+    <!-- DEBUG_MODE_SCRIPT_PLACEHOLDER -->
 </head>
 <body>
     <div class="game-container">
@@ -31,11 +32,6 @@
         
         <!-- Game HUD -->
         <div class="ui hidden" id="gameUI">
-            <div class="ui-left">
-                <div class="hud-panel">You: <span id="playerNameDisplay"></span></div>
-                <div class="hud-panel">Partner: <span id="partnerNameDisplay">Waiting...</span></div>
-                <div class="hud-panel">Level: <span id="levelDisplay">1</span>/10</div>
-            </div>
             <div class="ui-right">
                 <div class="hud-panel">Team Score: <span id="progress">0</span>/<span id="maxProgress">0</span></div>
             </div>
@@ -43,12 +39,33 @@
             <div id="doorStatus" class="instructions hidden" style="top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); font-size: 24px; color: gold; border: 2px solid white;">
                 Waiting for partner...
             </div>
-            <div class="instructions" style="bottom: 10px;">
-                <p>← → Move | Space/Up Jump | Avoid Trolls!</p>
-            </div>
         </div>
     </div>
+
+    <div id="outside-info" class="ui-outside">
+        <div id="levelInfoOutside" class="hud-panel ui-outside-element">
+            Level: <span id="levelDisplayOutside">1</span>/10
+        </div>
+        <div id="debugPanelOutside" class="hud-panel ui-outside-element" style="margin-top: 10px; border-top: 1px solid #555; padding-top: 5px;">
+            <label for="levelJump" style="font-size: 12px; color: #aaa;">Debug Jump:</label>
+            <select id="levelJump" style="background: #222; color: #fff; border: 1px solid #444; font-family: inherit; font-size: 12px;">
+                <option value="" disabled selected>Select Level</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="mobile-controls" class="hidden">
+        <div class="d-pad">
+            <button id="btnLeft">←</button>
+            <button id="btnRight">→</button>
+        </div>
+        <div class="action-pad">
+            <button id="btnJump">JUMP</button>
+        </div>
+    </div>
+
     <script src="music.js"></script>
-    <script src="game.js"></script>
+    <script type="module" src="game.js"></script>
 </body>
 </html>
