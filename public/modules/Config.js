@@ -14,7 +14,7 @@ export const assets = {
     troll: new Image(),
     door: new Image()
 };
-assets.vilde.src = 'assets/vilde.svg';
-assets.nora.src = 'assets/nora.svg';
+assets.vilde.src = 'assets/vilde.png';
+assets.nora.src = 'assets/nora.png';
 assets.troll.src = 'assets/troll.svg';
 assets.door.src = 'assets/door.svg';

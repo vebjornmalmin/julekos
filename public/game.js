@@ -11,6 +11,9 @@ const ctx = canvas.getContext('2d');
 canvas.width = 1200;
 canvas.height = 800;
 
+// Visual-only scale for character sprites (keeps hitbox/collisions unchanged)
+const SPRITE_SCALE = 1.5;
+
 
 const gameState = {
     currentLevel: 1,
@@ -1350,7 +1353,13 @@ function draw() {
 
     // Player
     const playerImg = gameState.playerName === 'Vilde' ? assets.vilde : assets.nora;
-    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+    {
+        const rw = player.width * SPRITE_SCALE;
+        const rh = player.height * SPRITE_SCALE;
+        const rx = player.x - (rw - player.width) / 2; // center horizontally on hitbox
+        const ry = player.y + player.height - rh;       // keep feet aligned to hitbox bottom
+        ctx.drawImage(playerImg, rx, ry, rw, rh);
+    }
 
     // Shield aura
     if (player.shieldTimer > 0) {
@@ -1366,7 +1375,13 @@ function draw() {
     if (partner.active && partner.level === gameState.currentLevel) {
         ctx.globalAlpha = 0.6;
         const partnerImg = partner.name === 'Vilde' ? assets.vilde : assets.nora;
-        ctx.drawImage(partnerImg, partner.x, partner.y, partner.width, partner.height);
+        {
+            const rw = partner.width * SPRITE_SCALE;
+            const rh = partner.height * SPRITE_SCALE;
+            const rx = partner.x - (rw - partner.width) / 2;
+            const ry = partner.y + partner.height - rh;
+            ctx.drawImage(partnerImg, rx, ry, rw, rh);
+        }
         ctx.globalAlpha = 1.0;
     }
 
