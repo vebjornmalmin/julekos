@@ -138,6 +138,15 @@ io.on('connection', (socket) => {
         io.emit('startNextLevel', currentLevelId + 1);
     });
 
+    // If anyone dies, reset the level's collectibles so the team must finish "in one go"
+    socket.on('playerDied', ({ levelId }) => {
+        if (!levelId) return;
+        console.log(`Resetting level ${levelId} after death.`);
+        levelState[levelId] = new Set();
+        levelCompletion[levelId] = new Set();
+        io.emit('levelReset', levelId);
+    });
+
     socket.on('disconnect', () => {
         if (players[socket.id]) {
             console.log(`Player ${players[socket.id].name} disconnected`);

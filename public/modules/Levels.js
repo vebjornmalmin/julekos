@@ -16,34 +16,35 @@ export const levelsData = [
             title: "Jotunheimen",
             text: "Juletrollene Vetle & Vebjørn er – som vanlig – sent ute med å planlegge årets tur.\n\nFor å kjøpe seg tid vil de gjøre alt de kan for å hindre dere i å nå siste bane og avsløre årets destinasjon.\n\nFinn veien gjennom hindrene og slå juletrollene en gang for alle! Første stopp: Jotunheimen – hvor trollene er ute etter skumlere ting enn bare bananbrød…"
         },
+        // No full ground: falling = death. Use ledges/plateaus.
         platforms: [
-            { x: 0, y: 750, w: 1200, h: 50 }, // Ground
-            { x: 200, y: 650, w: 200, h: 40 },
-            { x: 500, y: 550, w: 200, h: 40 },
-            { x: 800, y: 450, w: 200, h: 40 },
-            { x: 1000, y: 350, w: 200, h: 40 },
-            { x: 150, y: 500, w: 100, h: 30 } // Cabin platform
+            { x: 0, y: 720, w: 220, h: 26 },   // Start plateau
+            { x: 130, y: 580, w: 90, h: 22 },  // Cabin ledge
+            { x: 260, y: 650, w: 140, h: 26 },
+            { x: 330, y: 520, w: 90, h: 22 },
+            { x: 500, y: 580, w: 140, h: 26 },
+            { x: 740, y: 500, w: 140, h: 26 },
+            { x: 980, y: 420, w: 140, h: 26 },
+            { x: 980, y: 700, w: 220, h: 26 }  // Finish plateau (door)
         ],
         collectibles: [
-            // Gentle intro: more small pickups
-            { x: 120, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 180, y: 700, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 250, y: 580, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 550, y: 480, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 850, y: 380, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 1050, y: 280, type: 'snowflake', requiredPlayer: 'Nora' },
-            // Extra goodies
-            { x: 320, y: 620, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 620, y: 520, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 930, y: 420, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 170, y: 470, type: 'snowflake', requiredPlayer: 'Vilde' }
+            // REQUIRED (exactly 6): banana bread, evenly along the route
+            { x: 80, y: 680, type: 'bananabread', requiredPlayer: 'Vilde' },
+            { x: 300, y: 610, type: 'bananabread', requiredPlayer: 'Nora' },
+            { x: 520, y: 540, type: 'bananabread', requiredPlayer: 'Vilde' },
+            { x: 760, y: 460, type: 'bananabread', requiredPlayer: 'Nora' },
+            { x: 1010, y: 380, type: 'bananabread', requiredPlayer: 'Vilde' },
+            { x: 1120, y: 660, type: 'bananabread', requiredPlayer: 'Nora' },
+            // Optional powerups (not required for door)
+            { x: 180, y: 520, type: 'snowflake', requiredPlayer: 'Vilde', optional: true },
+            { x: 1020, y: 360, type: 'star', requiredPlayer: 'Nora', optional: true }
         ],
         monsters: [
             // Exactly two monsters: one of each (easy)
             { x: 280, y: 710, range: 300, name: 'Vetle', maxHealth: 2, speed: 1.8 },
             { x: 760, y: 510, range: 260, name: 'Vebjørn', maxHealth: 2, speed: 1.8 }
         ],
-        door: { x: 1100, y: 650 }
+        door: { x: 1100, y: 620 }
     },
     {
         id: 2,
@@ -60,32 +61,33 @@ export const levelsData = [
             text: "Dere kom dere gjennom Jotunheimens lumske farer – men ferden er ikke over.\n\nTrollene rømmer videre til den svenske skjærgården. Mellom svaberg og solglitter i havet prøver de å stoppe dere fra å finne neste hint.\n\nHold kursen. Hintet venter et sted der ute…"
         },
         platforms: [
-            { x: 0, y: 750, w: 300, h: 50 }, // Start island
-            { x: 400, y: 700, w: 150, h: 40 },
-            { x: 650, y: 700, w: 150, h: 40 },
-            { x: 900, y: 750, w: 300, h: 50 }, // End island
-            { x: 550, y: 550, w: 100, h: 30 } // High cliff
+            { x: 0, y: 720, w: 210, h: 26 },     // Start rock
+            { x: 300, y: 660, w: 140, h: 26 },   // Rock hop
+            { x: 420, y: 580, w: 90, h: 22 },    // Small ledge
+            // Moving "raft" rock for spice
+            { x: 540, y: 720, w: 110, h: 26, move: { axis: 'x', amp: 40, speed: 1.2, phase: 0.5 } },
+            { x: 720, y: 600, w: 120, h: 26 },   // Cliff ledge
+            { x: 980, y: 720, w: 220, h: 26 },   // Finish rock (door)
+            { x: 560, y: 520, w: 100, h: 22 }    // High cliff
         ],
         collectibles: [
-            { x: 80, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 200, y: 700, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 450, y: 630, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 700, y: 630, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 600, y: 480, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 1020, y: 700, type: 'snowflake', requiredPlayer: 'Nora' },
-            // More pickups along the route
-            { x: 520, y: 520, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 580, y: 520, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 960, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 1120, y: 700, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 560, y: 520, type: 'snowflake', requiredPlayer: 'Vilde' }
+            // REQUIRED (exactly 6): kayaks, evenly along the route
+            { x: 80, y: 680, type: 'kayak', requiredPlayer: 'Vilde' },
+            { x: 340, y: 620, type: 'kayak', requiredPlayer: 'Nora' },
+            { x: 460, y: 540, type: 'kayak', requiredPlayer: 'Vilde' },
+            { x: 580, y: 680, type: 'kayak', requiredPlayer: 'Nora' },
+            { x: 740, y: 560, type: 'kayak', requiredPlayer: 'Vilde' },
+            { x: 1120, y: 680, type: 'kayak', requiredPlayer: 'Nora' },
+            // Optional powerups
+            { x: 580, y: 480, type: 'snowflake', requiredPlayer: 'Vilde', optional: true },
+            { x: 620, y: 480, type: 'star', requiredPlayer: 'Nora', optional: true }
         ],
         monsters: [
             // Exactly two monsters (slightly harder)
             { x: 930, y: 710, range: 300, name: 'Vebjørn', maxHealth: 3, speed: 2.1 },
             { x: 430, y: 660, range: 240, name: 'Vetle', maxHealth: 3, speed: 2.1 }
         ],
-        door: { x: 1100, y: 650 }
+        door: { x: 1100, y: 640 }
     },
     {
         id: 3,
@@ -102,43 +104,41 @@ export const levelsData = [
             title: "Sogndal",
             text: "Etter Sverige står Sogndal for tur.\n\nMellom høye, snøkledde steinspir og dype fjorder kan juletrollene hoppe fram når som helst.\n\nTrå varsomt – those who enter…"
         },
+        // Level 3 complete redo: clear ascending route + segmented top ridge (no giant full-width platform).
         platforms: [
-            { x: 0, y: 750, w: 1200, h: 50 }, // Ground
-            // Divider used to "box-in" the level; move it down so the top platform is a bridge across.
-            { x: 580, y: 240, w: 40, h: 510 }, // Vertical Divider (passable at top)
-            // Left Path
-            { x: 100, y: 600, w: 200, h: 30 },
-            { x: 250, y: 450, w: 200, h: 30 },
-            { x: 100, y: 300, w: 200, h: 30 },
-            // Right Path
-            { x: 900, y: 600, w: 200, h: 30 },
-            { x: 750, y: 450, w: 200, h: 30 },
-            { x: 900, y: 300, w: 200, h: 30 },
-            // Top Meeting Point
-            { x: 0, y: 150, w: 1200, h: 30 }
+            { x: 0, y: 720, w: 200, h: 26 },      // Start ledge
+            { x: 170, y: 640, w: 110, h: 22 },
+            { x: 70, y: 560, w: 130, h: 22 },
+            { x: 240, y: 500, w: 110, h: 22 },
+            { x: 120, y: 420, w: 130, h: 22 },
+            { x: 300, y: 360, w: 110, h: 22 },
+            { x: 180, y: 280, w: 130, h: 22 },
+            { x: 380, y: 220, w: 110, h: 22 },    // last step to bridge
+            // Top ridge (segmented, requires a couple of careful jumps)
+            { x: 0, y: 160, w: 260, h: 26 },
+            { x: 340, y: 160, w: 220, h: 26 },
+            { x: 640, y: 160, w: 220, h: 26 },
+            { x: 940, y: 160, w: 260, h: 26 }
         ],
         collectibles: [
-            // More pickups + encourages both sides
-            { x: 140, y: 530, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 310, y: 380, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 150, y: 230, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 420, y: 230, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 1000, y: 530, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 870, y: 380, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 1000, y: 230, type: 'star', requiredPlayer: 'Nora' },
-            // Extra cliffside pickups
-            { x: 340, y: 580, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 840, y: 580, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 560, y: 110, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 620, y: 110, type: 'coin', requiredPlayer: 'Nora' }
+            // REQUIRED (exactly 6): skis, evenly spread along the climb + bridge
+            { x: 60, y: 680, type: 'skis', requiredPlayer: 'Vilde' },
+            { x: 190, y: 600, type: 'skis', requiredPlayer: 'Nora' },
+            { x: 110, y: 520, type: 'skis', requiredPlayer: 'Vilde' },
+            { x: 260, y: 440, type: 'skis', requiredPlayer: 'Nora' },
+            { x: 200, y: 260, type: 'skis', requiredPlayer: 'Vilde' },
+            { x: 1040, y: 120, type: 'skis', requiredPlayer: 'Nora' },
+            // Optional powerups
+            { x: 600, y: 160, type: 'snowflake', requiredPlayer: 'Vilde', optional: true },
+            { x: 660, y: 160, type: 'star', requiredPlayer: 'Nora', optional: true }
         ],
         monsters: [
             // Exactly two monsters (medium)
             { x: 220, y: 710, range: 520, name: 'Vetle', maxHealth: 4, speed: 2.3 },
             { x: 820, y: 710, range: 420, name: 'Vebjørn', maxHealth: 4, speed: 2.3 }
         ],
-        // Door moved to a clear end position (was confusing / hard to reach at the very top)
-        door: { x: 1100, y: 650 }
+        // Door on the final right segment (not overlapping any platform)
+        door: { x: 1120, y: 80 }
     },
     {
         id: 4,
@@ -155,33 +155,35 @@ export const levelsData = [
             text: "Fra fjellets topper til Gandsfjordens dyp…\n\nPå med snorkel og dykkermaske: disse trollene er jammen vanntette.\n\nDykk ned – og finn det som glitrer i dypet."
         },
         platforms: [
+            { x: 0, y: 720, w: 200, h: 26 },   // Start ledge
+            { x: 230, y: 650, w: 120, h: 22 }, // Step
+            // Rising bubble-platform (moving)
+            { x: 420, y: 640, w: 80, h: 18, move: { axis: 'y', amp: 70, speed: 1.0, phase: 1.4 } },
             { x: 0, y: 550, w: 250, h: 30 },
             { x: 350, y: 550, w: 250, h: 30 },
             { x: 700, y: 550, w: 250, h: 30 },
             { x: 1050, y: 550, w: 150, h: 30 },
             { x: 450, y: 350, w: 300, h: 30 }, // Upper platform
-            { x: 100, y: 200, w: 150, h: 30 } // High platform
+            { x: 100, y: 200, w: 150, h: 30 }  // High platform
         ],
         collectibles: [
-            { x: 120, y: 480, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 450, y: 480, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 520, y: 280, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 800, y: 480, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 600, y: 280, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 150, y: 130, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 1060, y: 480, type: 'snowflake', requiredPlayer: 'Vilde' },
-            // Extra underwater shinies
-            { x: 960, y: 520, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 260, y: 520, type: 'coin', requiredPlayer: 'Nora' },
-            // Keep requiredPlayer to the actual player names (Vilde/Nora) so it works in normal mode
-            { x: 560, y: 320, type: 'snowflake', requiredPlayer: 'Vilde' }
+            // REQUIRED (exactly 6): snorkels, evenly spread
+            { x: 60, y: 680, type: 'snorkel', requiredPlayer: 'Vilde' },
+            { x: 260, y: 610, type: 'snorkel', requiredPlayer: 'Nora' },
+            { x: 120, y: 510, type: 'snorkel', requiredPlayer: 'Vilde' },
+            { x: 480, y: 510, type: 'snorkel', requiredPlayer: 'Nora' },
+            { x: 600, y: 320, type: 'snorkel', requiredPlayer: 'Vilde' },
+            { x: 150, y: 170, type: 'snorkel', requiredPlayer: 'Nora' },
+            // Optional powerups
+            { x: 1060, y: 510, type: 'snowflake', requiredPlayer: 'Vilde', optional: true },
+            { x: 600, y: 240, type: 'star', requiredPlayer: 'Nora', optional: true }
         ],
         monsters: [
             // Exactly two monsters (medium+)
             { x: 360, y: 510, range: 300, name: 'Vebjørn', maxHealth: 5, speed: 2.5 },
             { x: 720, y: 510, range: 300, name: 'Vetle', maxHealth: 5, speed: 2.5 }
         ],
-        door: { x: 1100, y: 450 }
+        door: { x: 1100, y: 470 }
     },
     {
         id: 5,
@@ -199,37 +201,34 @@ export const levelsData = [
             text: "Fra vått til verre!\n\nTrollene jager dere inn i de dype østlandske skoger, i ulende uvær. Regnet pisker mellom trærne – og stien forsvinner i mørket.\n\nHold dere tørre den som kan… og hold sammen!"
         },
         platforms: [
-            { x: 0, y: 750, w: 1200, h: 50 }, // Ground
-            { x: 150, y: 650, w: 150, h: 30 },
-            { x: 350, y: 550, w: 150, h: 30 },
-            { x: 550, y: 450, w: 150, h: 30 },
-            { x: 750, y: 350, w: 150, h: 30 },
-            { x: 950, y: 250, w: 150, h: 30 },
-            { x: 50, y: 350, w: 200, h: 30 }, // Cabin platform
-            { x: 350, y: 350, w: 80, h: 30 }
+            { x: 0, y: 720, w: 210, h: 26 },    // Start log
+            { x: 250, y: 660, w: 120, h: 22 },
+            { x: 420, y: 600, w: 120, h: 22 },
+            { x: 590, y: 540, w: 120, h: 22 },
+            { x: 760, y: 480, w: 120, h: 22 },
+            { x: 930, y: 420, w: 120, h: 22 },
+            { x: 980, y: 260, w: 200, h: 26 }, // Finish log (door)
+            { x: 500, y: 720, w: 130, h: 26 }   // Mid safety log
         ],
         collectibles: [
-            // More collectibles; tighter platforming + storm
-            { x: 90, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 160, y: 700, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 200, y: 580, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 380, y: 480, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 600, y: 380, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 820, y: 280, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 100, y: 280, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 1000, y: 180, type: 'snowflake', requiredPlayer: 'Vilde' },
-            // Fun: rare shield pickup to survive a bad troll bump
-            { x: 70, y: 680, type: 'heart', requiredPlayer: 'Nora' },
-            // Extra forest goodies
-            { x: 560, y: 420, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 920, y: 220, type: 'star', requiredPlayer: 'Nora' }
+            // REQUIRED (exactly 6): mushrooms, evenly spread
+            { x: 60, y: 680, type: 'mushroom', requiredPlayer: 'Vilde' },
+            { x: 300, y: 620, type: 'mushroom', requiredPlayer: 'Nora' },
+            { x: 480, y: 560, type: 'mushroom', requiredPlayer: 'Vilde' },
+            { x: 660, y: 500, type: 'mushroom', requiredPlayer: 'Nora' },
+            { x: 840, y: 440, type: 'mushroom', requiredPlayer: 'Vilde' },
+            { x: 1120, y: 220, type: 'mushroom', requiredPlayer: 'Nora' },
+            // Optional powerups
+            { x: 560, y: 680, type: 'heart', requiredPlayer: 'Nora', optional: true },
+            { x: 700, y: 500, type: 'snowflake', requiredPlayer: 'Vilde', optional: true },
+            { x: 1060, y: 220, type: 'star', requiredPlayer: 'Nora', optional: true }
         ],
         monsters: [
             // Exactly two monsters (hard)
             { x: 120, y: 710, range: 720, name: 'Vetle', maxHealth: 6, speed: 2.8 },
             { x: 520, y: 510, range: 480, name: 'Vebjørn', maxHealth: 6, speed: 2.8 }
         ],
-        door: { x: 1000, y: 150 }
+        door: { x: 1100, y: 180 }
     },
     {
         id: 6,
@@ -246,8 +245,10 @@ export const levelsData = [
             text: "Dere nærmer dere veiens ende.\n\nSelve julekvelden er alt som står mellom dere og den store avsløringen. Men Vetle og Vebjørn gir seg ikke – ikke når julemat, julegaver, akevitt og ribbefett er i spill.\n\nHold dem i sjakk. Hold kursen. Nå avgjøres alt."
         },
         platforms: [
+            { x: 0, y: 720, w: 210, h: 26 },    // Start ledge
+            { x: 210, y: 650, w: 100, h: 22 },  // Step to sleigh
             // Sleigh
-            { x: 100, y: 650, w: 600, h: 30 }, // Runners
+            { x: 100, y: 650, w: 600, h: 30, move: { axis: 'y', amp: 12, speed: 0.9, phase: 0.2 } }, // Runners (gentle bob)
             { x: 150, y: 550, w: 500, h: 30 }, // Base
             { x: 150, y: 400, w: 30, h: 150 }, // Back
             { x: 620, y: 450, w: 80, h: 100 }, // Front
@@ -257,27 +258,27 @@ export const levelsData = [
             { x: 200, y: 350, w: 100, h: 30 } // Gift platform
         ],
         collectibles: [
-            // Final level: more collectibles + more movement
-            { x: 180, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 240, y: 700, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 200, y: 500, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 300, y: 500, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 400, y: 500, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 500, y: 500, type: 'star', requiredPlayer: 'Nora' },
-            { x: 850, y: 350, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 1050, y: 250, type: 'snowflake', requiredPlayer: 'Nora' },
-            // One shield in the final level
-            { x: 650, y: 520, type: 'heart', requiredPlayer: 'Vilde' },
-            // Bonus sparkle trail
-            { x: 740, y: 330, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 920, y: 330, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 1040, y: 230, type: 'star', requiredPlayer: 'Vilde' }
+            // REQUIRED (exactly 6): presents, evenly spread
+            { x: 60, y: 680, type: 'present', requiredPlayer: 'Vilde' },
+            { x: 210, y: 610, type: 'present', requiredPlayer: 'Nora' },
+            { x: 260, y: 310, type: 'present', requiredPlayer: 'Vilde' },
+            { x: 420, y: 510, type: 'present', requiredPlayer: 'Nora' },
+            { x: 840, y: 360, type: 'present', requiredPlayer: 'Vilde' },
+            { x: 1100, y: 260, type: 'present', requiredPlayer: 'Nora' },
+            // Optional powerups
+            // Shields placed on solid, reachable platforms
+            { x: 360, y: 520, type: 'heart', requiredPlayer: 'Vilde', optional: true }, // Sleigh base (y=550)
+            { x: 320, y: 620, type: 'heart', requiredPlayer: 'Nora', optional: true },  // Sleigh runners (y=650, moving)
+            { x: 860, y: 370, type: 'heart', requiredPlayer: 'Vilde', optional: true }, // Reindeer platform (y=400)
+            { x: 1050, y: 240, type: 'snowflake', requiredPlayer: 'Nora', optional: true },
+            { x: 420, y: 510, type: 'star', requiredPlayer: 'Vilde', optional: true }
         ],
         monsters: [
             // Exactly two monsters (final)
             { x: 220, y: 610, range: 620, name: 'Vebjørn', maxHealth: 7, speed: 3.1 },
             { x: 820, y: 360, range: 420, name: 'Vetle', maxHealth: 7, speed: 3.1 }
         ],
-        door: { x: 350, y: 450 }
+        // Door moved so it doesn't overlap the sleigh front block (x=620..700, y=450..550)
+        door: { x: 720, y: 470 }
     }
 ];

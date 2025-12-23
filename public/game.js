@@ -26,7 +26,8 @@ const gameState = {
     atDoor: false,
     waitingAtDoor: false,
     showingCutScreen: false,
-    showingEnding: false
+    showingEnding: false,
+    pendingLevelReset: false
 };
 
 // Player Object
@@ -43,7 +44,8 @@ const player = {
     facingRight: true,
     speedBoostTimer: 0,
     jumpBoostTimer: 0,
-    shieldTimer: 0
+    shieldTimer: 0,
+    standingPlatform: null
 };
 
 // Partner Object
@@ -66,6 +68,33 @@ let monsters = [];
 let door = null;
 let particles = [];
 let snowflakes = [];
+
+function updateMovingPlatforms() {
+    const t = Date.now();
+    for (const p of platforms) {
+        // Track previous position + per-frame delta for swept collisions / carrying the player
+        p.prevX = p.x;
+        p.prevY = p.y;
+
+        if (p.move) {
+            // Store base on first run
+            if (p.baseX == null) p.baseX = p.x;
+            if (p.baseY == null) p.baseY = p.y;
+            const amp = p.move.amp ?? 0;
+            const speed = p.move.speed ?? 1;
+            const phase = p.move.phase ?? 0;
+            const s = Math.sin((t / 1000) * speed + phase) * amp;
+            if (p.move.axis === 'y') {
+                p.y = p.baseY + s;
+            } else {
+                p.x = p.baseX + s;
+            }
+        }
+
+        p.dx = p.x - p.prevX;
+        p.dy = p.y - p.prevY;
+    }
+}
 
 // Initialize background snow
 for(let i=0; i<100; i++) {
@@ -90,6 +119,15 @@ function checkCollision(rect1, rect2) {
 function updatePhysics() {
     if (gameState.isDead) return;
 
+    // Update moving platforms before collision checks
+    updateMovingPlatforms();
+
+    // If we were standing on a platform last frame, carry the player with it.
+    if (player.onGround && player.standingPlatform) {
+        player.x += player.standingPlatform.dx || 0;
+        player.y += player.standingPlatform.dy || 0;
+    }
+
     // Movement
     if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
         player.velocityX = -player.speed;
@@ -105,6 +143,7 @@ function updatePhysics() {
     if ((keys[' '] || keys['ArrowUp'] || keys['w'] || keys['W']) && player.onGround) {
         player.velocityY = -player.jumpPower;
         player.onGround = false;
+        player.standingPlatform = null;
     }
 
     // Gravity
@@ -129,12 +168,21 @@ function updatePhysics() {
 
     // Platform Collision
     player.onGround = false;
+    player.standingPlatform = null;
     for (let platform of platforms) {
         if (checkCollision(player, platform)) {
-            if (player.velocityY > 0 && player.y + player.height - player.velocityY <= platform.y) {
+            // Swept landing check for moving platforms:
+            // If our previous bottom was above the platform's previous top, and our current bottom is at/under
+            // the platform's current top, treat it as a landing.
+            const prevBottom = (player.y + player.height) - player.velocityY;
+            const platformPrevY = platform.prevY ?? platform.y;
+            const currBottom = player.y + player.height;
+
+            if (player.velocityY > 0 && prevBottom <= platformPrevY + 1 && currBottom >= platform.y) {
                 player.y = platform.y - player.height;
                 player.velocityY = 0;
                 player.onGround = true;
+                player.standingPlatform = platform;
             } else if (player.velocityY < 0 && player.y - player.velocityY >= platform.y + platform.height) {
                 player.y = platform.y + platform.height;
                 player.velocityY = 0;
@@ -163,7 +211,10 @@ function updatePhysics() {
             if (!window.DEBUG_MODE && c.requiredPlayer && c.requiredPlayer !== gameState.playerName) continue;
 
             c.collected = true;
-            gameState.progress++;
+            // Only required collectibles count toward opening the door
+            if (!c.optional) {
+                gameState.progress++;
+            }
             
             // Powerup Logic
             if (c.type === 'snowflake') {
@@ -183,6 +234,7 @@ function updatePhysics() {
             }
 
             updateUI();
+            // Sync collected state for all collectibles (required + optional)
             socket.emit('starCollected', { levelId: gameState.currentLevel, collectibleIndex: i });
         }
     }
@@ -192,8 +244,42 @@ function updatePhysics() {
         let m = monsters[i];
         m.update();
         if(checkCollision(player, m)) {
-            // Check for stomp: Falling down and hitting the top half of the monster
-            const hittingTop = player.velocityY > 0 && (player.y + player.height) < (m.y + m.height * 0.5);
+            // Check for stomp (more forgiving):
+            // - must be falling
+            // - player's previous bottom was near/above monster top (grace window)
+            // - avoid counting extreme edge hits as stomps
+            const STOMP_GRACE_PX = 22; // forgiving: how far below the top we still count as a stomp
+            const playerBottom = player.y + player.height;
+            const playerBottomPrev = playerBottom - player.velocityY;
+            const monsterTop = m.y;
+            // Swept horizontal overlap: sideways jumps can clip the side on the collision frame.
+            const playerXPrev = player.x - player.velocityX;
+            const monsterXPrev = (m.prevX != null) ? m.prevX : m.x;
+            const overlapXNow =
+                Math.min(player.x + player.width, m.x + m.width) -
+                Math.max(player.x, m.x);
+            const overlapXPrev =
+                Math.min(playerXPrev + player.width, monsterXPrev + m.width) -
+                Math.max(playerXPrev, monsterXPrev);
+            const overlapXCross =
+                Math.min(player.x + player.width, monsterXPrev + m.width) -
+                Math.max(player.x, monsterXPrev);
+            const overlapXCross2 =
+                Math.min(playerXPrev + player.width, m.x + m.width) -
+                Math.max(playerXPrev, m.x);
+            const minOverlapForStomp = 2; // pixels; very forgiving for sideways motion
+            const enoughHorizontalOverlap =
+                Math.max(overlapXNow, overlapXPrev, overlapXCross, overlapXCross2) >= minOverlapForStomp;
+
+            // Swept vertical: require crossing the monster top this frame (from above)
+            const crossedTopThisFrame =
+                playerBottomPrev <= (monsterTop + STOMP_GRACE_PX) &&
+                playerBottom >= monsterTop;
+
+            const hittingTop =
+                enoughHorizontalOverlap &&
+                // Came from above (or very near above) the monster's top
+                crossedTopThisFrame;
             
             if (hittingTop) {
                 // Bounce
@@ -257,11 +343,17 @@ function die(reason) {
     
     // Visual effect
     createParticles(player.x, player.y, '#ff0000', 50);
+
+    // Reset level progress/collectibles for everyone
+    gameState.pendingLevelReset = true;
+    socket.emit('playerDied', { levelId: gameState.currentLevel });
     
     setTimeout(() => {
+        // If the reset comes from the server, it will clear isDead + rebuild the level.
+        if (!gameState.pendingLevelReset) return;
+        // Fallback: at least respawn the player (in case server message is delayed)
         resetPlayerPosition();
         gameState.isDead = false;
-        // Reset powerups
         player.speed = gameConfig.baseSpeed;
         player.jumpPower = gameConfig.baseJump;
     }, 1000);
@@ -1409,6 +1501,17 @@ function drawIcon(c) {
         ctx.beginPath(); ctx.arc(cx, cy + bob, size/1.5, 0, Math.PI*2); ctx.stroke();
     }
 
+    const drawRoundedRect = (x, y, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+        ctx.fill();
+    };
+
     // Icon
     if(c.type === 'snowflake') {
         ctx.fillStyle = '#00ffff';
@@ -1419,7 +1522,110 @@ function drawIcon(c) {
     } else if (c.type === 'heart') {
         ctx.fillStyle = '#ff4dd2';
         ctx.beginPath(); ctx.arc(cx, cy + bob, size/3, 0, Math.PI*2); ctx.fill();
+    } else if (c.type === 'bananabread') {
+        // Banana bread: loaf + chips
+        ctx.fillStyle = '#7A4A24';
+        drawRoundedRect(cx - 10, cy - 7 + bob, 20, 14, 4);
+        ctx.fillStyle = '#5A3418';
+        drawRoundedRect(cx - 9, cy - 5 + bob, 18, 10, 3);
+        ctx.fillStyle = '#D9B36B';
+        for (let i = 0; i < 6; i++) {
+            ctx.fillRect(cx - 7 + (i * 3) % 14, cy - 4 + bob + ((i * 5) % 8), 2, 2);
+        }
+    } else if (c.type === 'kayak') {
+        // Kayak: hull + paddle
+        ctx.fillStyle = '#E74C3C';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + bob, 12, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#C0392B';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + bob, 10, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#8B5A2B';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 12, cy - 10 + bob);
+        ctx.lineTo(cx + 12, cy + 6 + bob);
+        ctx.stroke();
+        ctx.fillStyle = '#2C3E50';
+        ctx.beginPath(); ctx.ellipse(cx - 14, cy - 11 + bob, 3, 2, -0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx + 14, cy + 7 + bob, 3, 2, -0.7, 0, Math.PI * 2); ctx.fill();
+    } else if (c.type === 'skis') {
+        // Skis: two parallel skis with curved tips + bindings
+        const y0 = cy + bob;
+        ctx.lineCap = 'round';
+        // Left ski
+        ctx.strokeStyle = '#E74C3C';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, y0 + 12);
+        ctx.lineTo(cx - 6, y0 - 8);
+        ctx.quadraticCurveTo(cx - 6, y0 - 14, cx - 1, y0 - 14); // curved tip
+        ctx.stroke();
+        // Right ski
+        ctx.strokeStyle = '#2980B9';
+        ctx.beginPath();
+        ctx.moveTo(cx + 6, y0 + 12);
+        ctx.lineTo(cx + 6, y0 - 8);
+        ctx.quadraticCurveTo(cx + 6, y0 - 14, cx + 1, y0 - 14);
+        ctx.stroke();
+        // Bindings
+        ctx.fillStyle = '#ECF0F1';
+        ctx.fillRect(cx - 10, y0 + 2, 8, 4);
+        ctx.fillRect(cx + 2, y0 + 2, 8, 4);
+        // Small stripes
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, y0 + 6);
+        ctx.lineTo(cx - 6, y0 + 10);
+        ctx.moveTo(cx + 6, y0 + 6);
+        ctx.lineTo(cx + 6, y0 + 10);
+        ctx.stroke();
+    } else if (c.type === 'snorkel') {
+        // Snorkel: mask + tube
+        ctx.fillStyle = '#1ABC9C';
+        drawRoundedRect(cx - 9, cy - 3 + bob, 18, 10, 3);
+        ctx.fillStyle = '#0B3D59';
+        drawRoundedRect(cx - 7, cy - 1 + bob, 6, 6, 2);
+        drawRoundedRect(cx + 1, cy - 1 + bob, 6, 6, 2);
+        ctx.strokeStyle = '#E67E22';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx + 8, cy - 3 + bob);
+        ctx.lineTo(cx + 12, cy - 12 + bob);
+        ctx.lineTo(cx + 7, cy - 14 + bob);
+        ctx.stroke();
+    } else if (c.type === 'mushroom') {
+        // Mushroom: cap + stem
+        ctx.fillStyle = '#E74C3C';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - 2 + bob, 12, 7, 0, Math.PI, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#F1C40F';
+        for (let i = 0; i < 4; i++) {
+            ctx.beginPath();
+            ctx.arc(cx - 6 + i * 4, cy - 4 + bob, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = '#F5E6C8';
+        drawRoundedRect(cx - 4, cy + bob, 8, 10, 3);
+    } else if (c.type === 'present') {
+        // Present: box + ribbon
+        ctx.fillStyle = '#2ECC71';
+        ctx.fillRect(cx - 9, cy - 9 + bob, 18, 18);
+        ctx.fillStyle = '#E74C3C';
+        ctx.fillRect(cx - 2, cy - 9 + bob, 4, 18);
+        ctx.fillRect(cx - 9, cy - 2 + bob, 18, 4);
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.arc(cx - 3, cy - 9 + bob, 3, 0, Math.PI * 2);
+        ctx.arc(cx + 3, cy - 9 + bob, 3, 0, Math.PI * 2);
+        ctx.fill();
     } else {
+        // Fallback coin
         ctx.fillStyle = '#ffd700';
         ctx.beginPath(); ctx.arc(cx, cy + bob, size/3, 0, Math.PI*2); ctx.fill();
     }
@@ -1436,7 +1642,7 @@ socket.on('levelStateResponse', (data) => {
         data.collectedIndices.forEach(idx => {
             if(collectibles[idx]) {
                 collectibles[idx].collected = true;
-                gameState.progress++;
+                if (!collectibles[idx].optional) gameState.progress++;
             }
         });
         updateUI();
@@ -1447,7 +1653,7 @@ socket.on('globalStarCollected', (data) => {
     if (data.levelId === gameState.currentLevel) {
         if(collectibles[data.collectibleIndex] && !collectibles[data.collectibleIndex].collected) {
             collectibles[data.collectibleIndex].collected = true;
-            gameState.progress++;
+            if (!collectibles[data.collectibleIndex].optional) gameState.progress++;
             updateUI();
         }
     }
@@ -1464,6 +1670,28 @@ socket.on('otherPlayerMoved', (data) => {
 socket.on('waitingAtDoor', () => {
     document.getElementById('doorStatus').textContent = "Waiting for partner to enter...";
     document.getElementById('doorStatus').classList.remove('hidden');
+});
+
+socket.on('levelReset', (levelId) => {
+    if (levelId !== gameState.currentLevel) return;
+    const data = levelsData[levelId - 1];
+    if (!data) return;
+
+    // Rebuild level objects (respawn trolls, reset moving platforms, reset collectibles)
+    buildLevelObjects(data);
+    gameState.progress = 0;
+    gameState.isDead = false;
+    gameState.pendingLevelReset = false;
+
+    // Reset powerups
+    player.speed = gameConfig.baseSpeed;
+    player.jumpPower = gameConfig.baseJump;
+    player.speedBoostTimer = 0;
+    player.jumpBoostTimer = 0;
+    player.shieldTimer = 0;
+
+    resetPlayerPosition();
+    updateUI();
 });
 
 socket.on('levelComplete', (levelId) => {
@@ -1513,6 +1741,68 @@ function resetPlayerPosition() {
     document.getElementById('doorStatus').classList.add('hidden');
 }
 
+function attachMonstersToPlatforms() {
+    const pickPlatformFor = (m) => {
+        // Robust selection: prefer platforms near the monster vertically, but allow
+        // slight horizontal mismatch (we'll clamp onto the platform after choosing).
+        let best = null;
+        let bestScore = Infinity;
+
+        const mcx = m.x + m.width * 0.5;
+        const mBottom = m.y + m.height;
+
+        for (const p of platforms) {
+            if (p.width < m.width) continue;
+
+            const pcx = p.x + p.width * 0.5;
+            const dx = Math.abs(mcx - pcx);
+            const dy = Math.abs(mBottom - p.y);
+
+            const overlapX = Math.min(m.x + m.width, p.x + p.width) - Math.max(m.x, p.x);
+            const outsidePenalty = overlapX > 0 ? 0 : 400; // strongly prefer platforms under/overlapping x
+
+            const score = dy * 3 + dx + outsidePenalty;
+            if (score < bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        }
+        return best;
+    };
+
+    for (const m of monsters) {
+        const p = pickPlatformFor(m);
+        if (!p) continue;
+
+        m.platformRef = p;
+        // Snap to platform top + clamp to bounds so trolls never drift/fall off
+        m.y = p.y - m.height;
+        m.x = Math.max(p.x, Math.min(p.x + p.width - m.width, m.x));
+    }
+}
+
+function buildLevelObjects(data) {
+    // Preserve custom fields like move by spreading p
+    platforms = data.platforms.map(p => ({
+        ...p,
+        width: p.w || p.width,
+        height: p.h || p.height
+    }));
+
+    collectibles = data.collectibles.map(c => ({ ...c, width: 30, height: 30, collected: false }));
+    monsters = data.monsters.map(m => new Monster(m.x, m.y, m.range, m.name, m.maxHealth, m.speed));
+    door = data.door ? { x: data.door.x, y: data.door.y, width: 60, height: 80 } : null;
+    gameState.maxProgress = collectibles.filter(c => !c.optional).length;
+
+    // Ensure moving-platform state starts clean
+    for (const p of platforms) {
+        if (p.baseX != null) delete p.baseX;
+        if (p.baseY != null) delete p.baseY;
+    }
+
+    attachMonstersToPlatforms();
+}
+
 function showCutScreen(levelData) {
     gameState.showingCutScreen = true;
     const cutScreen = document.getElementById('cutScreen');
@@ -1557,19 +1847,7 @@ function loadLevel(id) {
     // Show cut screen before loading level
     showCutScreen(data);
     
-    // Fix: Map w/h to width/height
-    platforms = data.platforms.map(p => ({
-        x: p.x, 
-        y: p.y, 
-        width: p.w || p.width, 
-        height: p.h || p.height, 
-        color: p.color,
-        type: p.type 
-    }));
-    collectibles = data.collectibles.map(c => ({...c, width: 30, height: 30, collected: false}));
-    monsters = data.monsters.map(m => new Monster(m.x, m.y, m.range, m.name, m.maxHealth, m.speed));
-    door = data.door ? { x: data.door.x, y: data.door.y, width: 60, height: 80 } : null;
-    gameState.maxProgress = collectibles.length;
+    buildLevelObjects(data);
     
     resetPlayerPosition();
     updateUI();

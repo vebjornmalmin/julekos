@@ -16,6 +16,27 @@ export class Monster {
     }
 
     update() {
+        // Track previous position for swept collision checks (stomps)
+        this.prevX = this.x;
+        this.prevY = this.y;
+
+        // If attached to a platform, keep the troll on it (including moving platforms)
+        if (this.platformRef) {
+            const p = this.platformRef;
+            const minX = p.x;
+            const maxX = p.x + p.width - this.width;
+
+            this.x += this.speed * this.direction;
+            if (this.x > maxX || this.x < minX) {
+                this.direction *= -1;
+            }
+            // Clamp + follow platform top
+            this.x = Math.max(minX, Math.min(maxX, this.x));
+            this.y = p.y - this.height;
+            return;
+        }
+
+        // Fallback: old range patrol
         this.x += this.speed * this.direction;
         if (this.x > this.startX + this.range || this.x < this.startX) {
             this.direction *= -1;
