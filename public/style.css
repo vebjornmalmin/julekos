@@ -224,3 +224,55 @@ body {
     /* Override hud-panel specific styles if needed for outside elements */
     position: static; /* Remove absolute positioning */
 }
+
+/* Cut Screen Styling */
+.cut-screen-content {
+    max-width: 800px;
+    padding: 40px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.8);
+    border: 4px solid #ffd700;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+}
+
+.cut-screen-title {
+    font-size: 48px;
+    margin-bottom: 30px;
+    color: #ffd700;
+    text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 215, 0, 0.8);
+    font-weight: 900;
+    letter-spacing: 2px;
+    animation: fadeIn 0.8s ease-in;
+}
+
+.cut-screen-text {
+    font-size: 20px;
+    line-height: 1.8;
+    color: #f4d4a4;
+    text-shadow: 2px 2px 0 #000;
+    margin-bottom: 40px;
+    animation: fadeIn 1s ease-in 0.3s both;
+    font-family: 'Courier New', monospace;
+}
+
+.destination-text {
+    font-size: 36px;
+    color: #ffd700;
+    font-weight: bold;
+    text-shadow: 3px 3px 0 #000, 0 0 30px rgba(255, 215, 0, 0.8);
+    display: block;
+    margin-top: 20px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

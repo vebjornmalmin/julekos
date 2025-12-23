@@ -1,54 +1,111 @@
 // --- Level Design ---
 // Base ground for 1200x800 canvas
-const ground = { x: 0, y: 750, width: 1200, height: 50, color: '#fff', type: 'snow_ground' };
 
 export const levelsData = [
     {
         id: 1,
-        title: "Winter Morning",
-        theme: { sky: ['#87CEEB', '#E0F7FA'], mountain: '#FFFFFF', platform: '#A8DADC' },
+        title: "Jotunheimen",
+        theme: {
+            type: 'mountain',
+            sky: ['#87CEEB', '#E0F6FF', '#B0D4E6'],
+            mountain: ['#8B7355', '#6B5B4F', '#5A4A3F'],
+            platform: '#8B7355',
+            cabin: true
+        },
+        cutScreen: {
+            title: "Jotunheimen",
+            text: "Juletrollene Vetle & Vebjørn er – som vanlig – sent ute med å planlegge årets tur.\n\nFor å kjøpe seg tid vil de gjøre alt de kan for å hindre dere i å nå siste bane og avsløre årets destinasjon.\n\nFinn veien gjennom hindrene og slå juletrollene en gang for alle! Første stopp: Jotunheimen – hvor trollene er ute etter skumlere ting enn bare bananbrød…"
+        },
         platforms: [
-            ground,
+            { x: 0, y: 750, w: 1200, h: 50 }, // Ground
             { x: 200, y: 650, w: 200, h: 40 },
             { x: 500, y: 550, w: 200, h: 40 },
             { x: 800, y: 450, w: 200, h: 40 },
-            { x: 1000, y: 350, w: 200, h: 40 }
+            { x: 1000, y: 350, w: 200, h: 40 },
+            { x: 150, y: 500, w: 100, h: 30 } // Cabin platform
         ],
         collectibles: [
+            // Gentle intro: more small pickups
+            { x: 120, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 180, y: 700, type: 'coin', requiredPlayer: 'Nora' },
             { x: 250, y: 580, type: 'coin', requiredPlayer: 'Vilde' },
             { x: 550, y: 480, type: 'coin', requiredPlayer: 'Nora' },
             { x: 850, y: 380, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 1050, y: 280, type: 'snowflake', requiredPlayer: 'Nora' }
+            { x: 1050, y: 280, type: 'snowflake', requiredPlayer: 'Nora' },
+            // Extra goodies
+            { x: 320, y: 620, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 620, y: 520, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 930, y: 420, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 170, y: 470, type: 'snowflake', requiredPlayer: 'Vilde' }
         ],
-        monsters: [],
+        monsters: [
+            // Exactly two monsters: one of each (easy)
+            { x: 280, y: 710, range: 300, name: 'Vetle', maxHealth: 2, speed: 1.8 },
+            { x: 760, y: 510, range: 260, name: 'Vebjørn', maxHealth: 2, speed: 1.8 }
+        ],
         door: { x: 1100, y: 650 }
     },
     {
         id: 2,
-        title: "Frozen Crossing",
-        theme: { sky: ['#CAF0F8', '#90E0EF'], mountain: '#0077B6', platform: '#00B4D8' },
+        title: "Svensk Skjærgård",
+        theme: {
+            type: 'coast',
+            sky: ['#87CEEB', '#FFE4B5', '#FFD700'],
+            water: ['#4A90E2', '#5BA3F5', '#6BB6FF'],
+            platform: '#D4A574',
+            sunny: true
+        },
+        cutScreen: {
+            title: "Svensk Skjærgård",
+            text: "Dere kom dere gjennom Jotunheimens lumske farer – men ferden er ikke over.\n\nTrollene rømmer videre til den svenske skjærgården. Mellom svaberg og solglitter i havet prøver de å stoppe dere fra å finne neste hint.\n\nHold kursen. Hintet venter et sted der ute…"
+        },
         platforms: [
             { x: 0, y: 750, w: 300, h: 50 }, // Start island
-            { x: 400, y: 700, w: 150, h: 40 }, // Step 1
-            { x: 650, y: 700, w: 150, h: 40 }, // Step 2
-            { x: 900, y: 750, w: 300, h: 50 }  // End island
+            { x: 400, y: 700, w: 150, h: 40 },
+            { x: 650, y: 700, w: 150, h: 40 },
+            { x: 900, y: 750, w: 300, h: 50 }, // End island
+            { x: 550, y: 550, w: 100, h: 30 } // High cliff
         ],
         collectibles: [
+            { x: 80, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 200, y: 700, type: 'coin', requiredPlayer: 'Nora' },
             { x: 450, y: 630, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 700, y: 630, type: 'coin', requiredPlayer: 'Nora' }
+            { x: 700, y: 630, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 600, y: 480, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 1020, y: 700, type: 'snowflake', requiredPlayer: 'Nora' },
+            // More pickups along the route
+            { x: 520, y: 520, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 580, y: 520, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 960, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 1120, y: 700, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 560, y: 520, type: 'snowflake', requiredPlayer: 'Vilde' }
         ],
         monsters: [
-            { x: 950, y: 690, range: 200, name: 'Vebjørn' }
+            // Exactly two monsters (slightly harder)
+            { x: 930, y: 710, range: 300, name: 'Vebjørn', maxHealth: 3, speed: 2.1 },
+            { x: 430, y: 660, range: 240, name: 'Vetle', maxHealth: 3, speed: 2.1 }
         ],
         door: { x: 1100, y: 650 }
     },
     {
         id: 3,
-        title: "The Split Path",
-        theme: { sky: ['#2D6A4F', '#40916C'], mountain: '#1B4332', platform: '#52B788' },
+        title: "Sogndal",
+        theme: {
+            type: 'fjord',
+            sky: ['#B0C4DE', '#D3D3D3', '#E6E6FA'],
+            mountain: ['#708090', '#778899', '#696969'],
+            water: ['#4682B4', '#5F9EA0'],
+            platform: '#8B7355',
+            pine: true
+        },
+        cutScreen: {
+            title: "Sogndal",
+            text: "Etter Sverige står Sogndal for tur.\n\nMellom høye, snøkledde steinspir og dype fjorder kan juletrollene hoppe fram når som helst.\n\nTrå varsomt – those who enter…"
+        },
         platforms: [
-            ground,
-            { x: 580, y: 150, w: 40, h: 600 }, // Vertical Divider
+            { x: 0, y: 750, w: 1200, h: 50 }, // Ground
+            // Divider used to "box-in" the level; move it down so the top platform is a bridge across.
+            { x: 580, y: 240, w: 40, h: 510 }, // Vertical Divider (passable at top)
             // Left Path
             { x: 100, y: 600, w: 200, h: 30 },
             { x: 250, y: 450, w: 200, h: 30 },
@@ -61,167 +118,133 @@ export const levelsData = [
             { x: 0, y: 150, w: 1200, h: 30 }
         ],
         collectibles: [
-            { x: 150, y: 530, type: 'coin', requiredPlayer: 'Vilde' },
+            // More pickups + encourages both sides
+            { x: 140, y: 530, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 310, y: 380, type: 'coin', requiredPlayer: 'Nora' },
             { x: 150, y: 230, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 420, y: 230, type: 'snowflake', requiredPlayer: 'Nora' },
             { x: 1000, y: 530, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 870, y: 380, type: 'coin', requiredPlayer: 'Vilde' },
             { x: 1000, y: 230, type: 'star', requiredPlayer: 'Nora' },
-            { x: 800, y: 380, type: 'snowflake', requiredPlayer: 'Nora' } // Extra help for the long journey
+            // Extra cliffside pickups
+            { x: 340, y: 580, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 840, y: 580, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 560, y: 110, type: 'snowflake', requiredPlayer: 'Vilde' },
+            { x: 620, y: 110, type: 'coin', requiredPlayer: 'Nora' }
         ],
         monsters: [
-            { x: 300, y: 690, range: 600, name: 'Vetle' },
-            { x: 900, y: 690, range: 400, name: 'Vebjørn' } // Right side guard
+            // Exactly two monsters (medium)
+            { x: 220, y: 710, range: 520, name: 'Vetle', maxHealth: 4, speed: 2.3 },
+            { x: 820, y: 710, range: 420, name: 'Vebjørn', maxHealth: 4, speed: 2.3 }
         ],
-        door: { x: 580, y: 50 }
+        // Door moved to a clear end position (was confusing / hard to reach at the very top)
+        door: { x: 1100, y: 650 }
     },
     {
         id: 4,
-        title: "Troll Bridge",
-        theme: { sky: ['#5E503F', '#8D7F71'], mountain: '#2C1810', platform: '#A68A64' },
+        title: "Gandsfjorden",
+        theme: {
+            type: 'underwater',
+            sky: ['#1E3A5F', '#2E4A6F', '#3E5A7F'],
+            water: ['#006994', '#0080A8', '#0099BC'],
+            platform: '#5C4033', // Darker brown for underwater rocks
+            fish: true
+        },
+        cutScreen: {
+            title: "Gandsfjorden",
+            text: "Fra fjellets topper til Gandsfjordens dyp…\n\nPå med snorkel og dykkermaske: disse trollene er jammen vanntette.\n\nDykk ned – og finn det som glitrer i dypet."
+        },
         platforms: [
             { x: 0, y: 550, w: 250, h: 30 },
             { x: 350, y: 550, w: 250, h: 30 },
             { x: 700, y: 550, w: 250, h: 30 },
             { x: 1050, y: 550, w: 150, h: 30 },
-            { x: 450, y: 350, w: 300, h: 30 } // Upper bridge
+            { x: 450, y: 350, w: 300, h: 30 }, // Upper platform
+            { x: 100, y: 200, w: 150, h: 30 } // High platform
         ],
         collectibles: [
+            { x: 120, y: 480, type: 'coin', requiredPlayer: 'Vilde' },
             { x: 450, y: 480, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 520, y: 280, type: 'coin', requiredPlayer: 'Nora' },
             { x: 800, y: 480, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 600, y: 280, type: 'heart', requiredPlayer: 'Vilde' }
+            { x: 600, y: 280, type: 'star', requiredPlayer: 'Vilde' },
+            { x: 150, y: 130, type: 'snowflake', requiredPlayer: 'Nora' },
+            { x: 1060, y: 480, type: 'snowflake', requiredPlayer: 'Vilde' },
+            // Extra underwater shinies
+            { x: 960, y: 520, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 260, y: 520, type: 'coin', requiredPlayer: 'Nora' },
+            // Keep requiredPlayer to the actual player names (Vilde/Nora) so it works in normal mode
+            { x: 560, y: 320, type: 'snowflake', requiredPlayer: 'Vilde' }
         ],
         monsters: [
-            { x: 350, y: 490, range: 200, name: 'Vebjørn' },
-            { x: 700, y: 490, range: 200, name: 'Vetle' },
-            { x: 500, y: 290, range: 200, name: 'Vebjørn' }
+            // Exactly two monsters (medium+)
+            { x: 360, y: 510, range: 300, name: 'Vebjørn', maxHealth: 5, speed: 2.5 },
+            { x: 720, y: 510, range: 300, name: 'Vetle', maxHealth: 5, speed: 2.5 }
         ],
         door: { x: 1100, y: 450 }
     },
     {
         id: 5,
-        title: "Candy Cane Lane",
-        theme: { sky: ['#FFCDB2', '#FFB4A2'], mountain: '#E5989B', platform: '#B5838D' },
+        title: "Østlandske Skoger",
+        theme: {
+            type: 'forest',
+            sky: ['#2F4F2F', '#3D5A3D', '#4A6A4A'],
+            forest: ['#1B3A1B', '#2D4D2D'],
+            platform: '#654321',
+            storm: true,
+            rain: true
+        },
+        cutScreen: {
+            title: "Østlandske Skoger",
+            text: "Fra vått til verre!\n\nTrollene jager dere inn i de dype østlandske skoger, i ulende uvær. Regnet pisker mellom trærne – og stien forsvinner i mørket.\n\nHold dere tørre den som kan… og hold sammen!"
+        },
         platforms: [
-            ground,
+            { x: 0, y: 750, w: 1200, h: 50 }, // Ground
             { x: 150, y: 650, w: 150, h: 30 },
             { x: 350, y: 550, w: 150, h: 30 },
             { x: 550, y: 450, w: 150, h: 30 },
             { x: 750, y: 350, w: 150, h: 30 },
             { x: 950, y: 250, w: 150, h: 30 },
-            { x: 50, y: 350, w: 200, h: 30 }, // Hidden ledge
-            { x: 350, y: 350, w: 80, h: 30 } // Stepping stone
+            { x: 50, y: 350, w: 200, h: 30 }, // Cabin platform
+            { x: 350, y: 350, w: 80, h: 30 }
         ],
         collectibles: [
+            // More collectibles; tighter platforming + storm
+            { x: 90, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 160, y: 700, type: 'coin', requiredPlayer: 'Nora' },
             { x: 200, y: 580, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 380, y: 480, type: 'coin', requiredPlayer: 'Vilde' },
             { x: 600, y: 380, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 100, y: 280, type: 'heart', requiredPlayer: 'Nora' }
+            { x: 820, y: 280, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 100, y: 280, type: 'snowflake', requiredPlayer: 'Nora' },
+            { x: 1000, y: 180, type: 'snowflake', requiredPlayer: 'Vilde' },
+            // Fun: rare shield pickup to survive a bad troll bump
+            { x: 70, y: 680, type: 'heart', requiredPlayer: 'Nora' },
+            // Extra forest goodies
+            { x: 560, y: 420, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 920, y: 220, type: 'star', requiredPlayer: 'Nora' }
         ],
         monsters: [
-            { x: 0, y: 690, range: 1100, name: 'Vetle' } // Long patrol
+            // Exactly two monsters (hard)
+            { x: 120, y: 710, range: 720, name: 'Vetle', maxHealth: 6, speed: 2.8 },
+            { x: 520, y: 510, range: 480, name: 'Vebjørn', maxHealth: 6, speed: 2.8 }
         ],
         door: { x: 1000, y: 150 }
     },
     {
         id: 6,
-        title: "Crystal Cavern",
-        theme: { sky: ['#240046', '#3C096C'], mountain: '#10002B', platform: '#5A189A' },
-        platforms: [
-            ground,
-            { x: 0, y: 100, w: 1200, h: 50 }, // Ceiling
-            { x: 150, y: 550, w: 200, h: 40 },
-            { x: 850, y: 550, w: 200, h: 40 },
-            { x: 500, y: 400, w: 200, h: 40 },
-            { x: 150, y: 250, w: 150, h: 40 },
-            { x: 900, y: 250, w: 150, h: 40 }
-        ],
-        collectibles: [
-            { x: 200, y: 480, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 900, y: 480, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 600, y: 330, type: 'star', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 500, y: 340, range: 180, name: 'Vebjørn' },
-            { x: 150, y: 690, range: 300, name: 'Vetle' },
-            { x: 750, y: 690, range: 300, name: 'Vebjørn' }
-        ],
-        door: { x: 600, y: 650 }
-    },
-    {
-        id: 7,
-        title: "The Climb",
-        theme: { sky: ['#A2D2FF', '#BDE0FE'], mountain: '#FFAFCC', platform: '#CDB4DB' },
-        platforms: [
-            { x: 400, y: 750, w: 400, h: 40 }, // Base
-            { x: 200, y: 600, w: 150, h: 30 },
-            { x: 850, y: 600, w: 150, h: 30 },
-            { x: 525, y: 450, w: 150, h: 30 },
-            { x: 250, y: 300, w: 120, h: 30 },
-            { x: 830, y: 300, w: 120, h: 30 },
-            { x: 550, y: 150, w: 100, h: 30 }  // Top
-        ],
-        collectibles: [
-            { x: 250, y: 530, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 900, y: 530, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 300, y: 230, type: 'star', requiredPlayer: 'Nora' },
-            { x: 880, y: 230, type: 'star', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [],
-        door: { x: 580, y: 50 }
-    },
-    {
-        id: 8,
-        title: "Santa's Workshop",
-        theme: { sky: ['#7F5539', '#9C6644'], mountain: '#606C38', platform: '#DDA15E' },
-        platforms: [
-            ground,
-            { x: 0, y: 600, w: 900, h: 30 }, // Conveyor 1
-            { x: 300, y: 450, w: 900, h: 30 }, // Conveyor 2
-            { x: 0, y: 300, w: 900, h: 30 }, // Conveyor 3
-            { x: 300, y: 150, w: 900, h: 30 }  // Conveyor 4
-        ],
-        collectibles: [
-            { x: 100, y: 530, type: 'coin', requiredPlayer: 'Nora' },
-            { x: 1100, y: 380, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 100, y: 230, type: 'star', requiredPlayer: 'Nora' },
-            { x: 1100, y: 80, type: 'heart', requiredPlayer: 'Vilde' }
-        ],
-        monsters: [
-            { x: 300, y: 540, range: 300, name: 'Vetle' },
-            { x: 600, y: 390, range: 300, name: 'Vebjørn' },
-            { x: 300, y: 240, range: 300, name: 'Vetle' }
-        ],
-        door: { x: 100, y: 150 }
-    },
-    {
-        id: 9,
-        title: "Blizzard",
-        theme: { sky: ['#CED4DA', '#DEE2E6'], mountain: '#6C757D', platform: '#495057' },
-        platforms: [
-            ground,
-            { x: 100, y: 600, w: 100, h: 100 },
-            { x: 300, y: 450, w: 100, h: 100 },
-            { x: 550, y: 600, w: 100, h: 100 },
-            { x: 800, y: 450, w: 100, h: 100 },
-            { x: 1000, y: 300, w: 100, h: 100 },
-            { x: 750, y: 150, w: 100, h: 100 },
-            { x: 500, y: 300, w: 100, h: 100 },
-            { x: 250, y: 150, w: 100, h: 100 }
-        ],
-        collectibles: [
-            { x: 130, y: 530, type: 'snowflake', requiredPlayer: 'Vilde' },
-            { x: 580, y: 530, type: 'snowflake', requiredPlayer: 'Nora' },
-            { x: 1030, y: 230, type: 'star', requiredPlayer: 'Vilde' },
-            { x: 280, y: 80, type: 'heart', requiredPlayer: 'Nora' }
-        ],
-        monsters: [
-            { x: 0, y: 690, range: 1100, name: 'Vebjørn' }, // Chaos below
-            { x: 500, y: 90, range: 80, name: 'Vetle' } // Guarding top path
-        ],
-        door: { x: 50, y: 50 }
-    },
-    {
-        id: 10,
-        title: "Christmas Eve",
-        theme: { sky: ['#001219', '#005F73'], mountain: '#0A9396', platform: '#94D2BD' },
+        title: "Julekvelden",
+        theme: {
+            type: 'christmas',
+            sky: ['#1a1a2e', '#16213e', '#0f3460'],
+            platform: '#8B4513', // Brown wood for sleigh/reindeer platforms
+            cozy: true,
+            warm: true
+        },
+        cutScreen: {
+            title: "Julekvelden",
+            text: "Dere nærmer dere veiens ende.\n\nSelve julekvelden er alt som står mellom dere og den store avsløringen. Men Vetle og Vebjørn gir seg ikke – ikke når julemat, julegaver, akevitt og ribbefett er i spill.\n\nHold dem i sjakk. Hold kursen. Nå avgjøres alt."
+        },
         platforms: [
             // Sleigh
             { x: 100, y: 650, w: 600, h: 30 }, // Runners
@@ -230,17 +253,31 @@ export const levelsData = [
             { x: 620, y: 450, w: 80, h: 100 }, // Front
             // Reindeer
             { x: 800, y: 400, w: 150, h: 30 },
-            { x: 1000, y: 300, w: 150, h: 30 }
+            { x: 1000, y: 300, w: 150, h: 30 },
+            { x: 200, y: 350, w: 100, h: 30 } // Gift platform
         ],
         collectibles: [
-            { x: 200, y: 500, type: 'heart', requiredPlayer: 'Vilde' },
-            { x: 300, y: 500, type: 'heart', requiredPlayer: 'Nora' },
+            // Final level: more collectibles + more movement
+            { x: 180, y: 700, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 240, y: 700, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 200, y: 500, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 300, y: 500, type: 'coin', requiredPlayer: 'Nora' },
             { x: 400, y: 500, type: 'star', requiredPlayer: 'Vilde' },
             { x: 500, y: 500, type: 'star', requiredPlayer: 'Nora' },
-            { x: 850, y: 350, type: 'coin', requiredPlayer: 'Vilde' },
-            { x: 1050, y: 250, type: 'coin', requiredPlayer: 'Nora' }
+            { x: 850, y: 350, type: 'snowflake', requiredPlayer: 'Vilde' },
+            { x: 1050, y: 250, type: 'snowflake', requiredPlayer: 'Nora' },
+            // One shield in the final level
+            { x: 650, y: 520, type: 'heart', requiredPlayer: 'Vilde' },
+            // Bonus sparkle trail
+            { x: 740, y: 330, type: 'coin', requiredPlayer: 'Vilde' },
+            { x: 920, y: 330, type: 'coin', requiredPlayer: 'Nora' },
+            { x: 1040, y: 230, type: 'star', requiredPlayer: 'Vilde' }
         ],
-        monsters: [],
+        monsters: [
+            // Exactly two monsters (final)
+            { x: 220, y: 610, range: 620, name: 'Vebjørn', maxHealth: 7, speed: 3.1 },
+            { x: 820, y: 360, range: 420, name: 'Vetle', maxHealth: 7, speed: 3.1 }
+        ],
         door: { x: 350, y: 450 }
     }
 ];

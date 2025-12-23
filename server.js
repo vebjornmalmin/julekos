@@ -99,6 +99,13 @@ io.on('connection', (socket) => {
 
     // Handle Door Logic
     socket.on('playerEnteredDoor', (levelId) => {
+        // In debug mode, allow single-player progression
+        if (process.env.DEBUG_MODE === 'true') {
+            console.log(`Debug mode: Single player completing Level ${levelId}`);
+            io.emit('levelComplete', levelId);
+            return;
+        }
+        
         if (!levelCompletion[levelId]) {
             levelCompletion[levelId] = new Set();
         }
