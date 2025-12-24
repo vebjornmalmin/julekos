@@ -20,6 +20,7 @@ const gameState = {
     totalLevels: 6,
     progress: 0,
     maxProgress: 0,
+    lives: 3,
     running: false,
     playerName: '',
     isDead: false,
@@ -242,6 +243,7 @@ function updatePhysics() {
     // Monsters -> Interaction (Stomp or Die)
     for(let i = monsters.length - 1; i >= 0; i--) {
         let m = monsters[i];
+        if (m.dead) continue;
         m.update();
         if(checkCollision(player, m)) {
             // Check for stomp (more forgiving):
@@ -287,9 +289,17 @@ function updatePhysics() {
                 m.health--;
                 createParticles(m.x + m.width/2, m.y, '#fff', 10); // Hit effect
 
+                // Broadcast health update (shared across players)
+                socket.emit('monsterHit', {
+                    levelId: gameState.currentLevel,
+                    monsterIndex: i,
+                    health: m.health
+                });
+
                 if (m.health <= 0) {
                     createParticles(m.x + m.width/2, m.y + m.height/2, '#555', 30); // Death effect
-                    monsters.splice(i, 1);
+                    m.dead = true; // Keep index stable; don't splice
+                    socket.emit('monsterDied', { levelId: gameState.currentLevel, monsterIndex: i });
                 }
             } else {
                 // Shield prevents death; bounce away instead
@@ -344,18 +354,21 @@ function die(reason) {
     // Visual effect
     createParticles(player.x, player.y, '#ff0000', 50);
 
-    // Reset level progress/collectibles for everyone
+    // Server decides whether we respawn (lives left) or reset the whole level (out of lives)
     gameState.pendingLevelReset = true;
-    socket.emit('playerDied', { levelId: gameState.currentLevel });
+    socket.emit('playerDied', { levelId: gameState.currentLevel, playerId: socket.id });
     
     setTimeout(() => {
-        // If the reset comes from the server, it will clear isDead + rebuild the level.
+        // Fallback: if we didn't hear back, at least respawn locally (keep level state)
         if (!gameState.pendingLevelReset) return;
-        // Fallback: at least respawn the player (in case server message is delayed)
         resetPlayerPosition();
         gameState.isDead = false;
+        gameState.pendingLevelReset = false;
         player.speed = gameConfig.baseSpeed;
         player.jumpPower = gameConfig.baseJump;
+        player.speedBoostTimer = 0;
+        player.jumpBoostTimer = 0;
+        player.shieldTimer = 0;
     }, 1000);
 }
 
@@ -1441,7 +1454,9 @@ function draw() {
     });
 
     // Monsters
-    monsters.forEach(m => m.draw(ctx));
+    monsters.forEach(m => {
+        if (!m.dead) m.draw(ctx);
+    });
 
     // Player
     const playerImg = gameState.playerName === 'Vilde' ? assets.vilde : assets.nora;
@@ -1661,10 +1676,17 @@ socket.on('globalStarCollected', (data) => {
 
 socket.on('otherPlayerMoved', (data) => {
     partner.active = true;
+    if (data.name) partner.name = data.name;
     partner.x = data.x;
     partner.y = data.y;
     partner.level = data.level;
     // We could show "At Door" status on partner too if we wanted
+});
+
+socket.on('playerLeft', (socketId) => {
+    // If the other player left, clear partner state
+    partner.active = false;
+    partner.name = '';
 });
 
 socket.on('waitingAtDoor', () => {
@@ -1692,6 +1714,76 @@ socket.on('levelReset', (levelId) => {
 
     resetPlayerPosition();
     updateUI();
+    socket.emit('requestMonsterState', levelId);
+    socket.emit('requestLivesState', levelId);
+});
+
+socket.on('livesUpdate', ({ levelId, lives }) => {
+    if (levelId !== gameState.currentLevel) return;
+    gameState.lives = lives;
+    updateUI();
+});
+
+socket.on('playerRespawn', ({ levelId, playerId }) => {
+    if (levelId !== gameState.currentLevel) return;
+    if (playerId !== socket.id) return;
+
+    gameState.isDead = false;
+    gameState.pendingLevelReset = false;
+
+    // Reset powerups on death
+    player.speed = gameConfig.baseSpeed;
+    player.jumpPower = gameConfig.baseJump;
+    player.speedBoostTimer = 0;
+    player.jumpBoostTimer = 0;
+    player.shieldTimer = 0;
+
+    resetPlayerPosition();
+    updateUI();
+});
+
+// --- Monster sync (health + death only) ---
+function applyMonsterState({ levelId, healthByIndex, deadIndices }) {
+    if (levelId !== gameState.currentLevel) return;
+    if (!monsters || monsters.length === 0) return;
+
+    if (healthByIndex) {
+        for (const [idxStr, hp] of Object.entries(healthByIndex)) {
+            const idx = Number(idxStr);
+            if (!Number.isFinite(idx)) continue;
+            if (!monsters[idx]) continue;
+            monsters[idx].health = hp;
+            if (hp <= 0) monsters[idx].dead = true;
+        }
+    }
+    if (deadIndices) {
+        for (const idx of deadIndices) {
+            if (monsters[idx]) {
+                monsters[idx].dead = true;
+                monsters[idx].health = 0;
+            }
+        }
+    }
+}
+
+socket.on('monsterStateResponse', (data) => {
+    applyMonsterState(data);
+});
+
+socket.on('monsterHit', (data) => {
+    if (data.levelId !== gameState.currentLevel) return;
+    const m = monsters[data.monsterIndex];
+    if (!m) return;
+    m.health = data.health;
+    if (data.health <= 0) m.dead = true;
+});
+
+socket.on('monsterDied', (data) => {
+    if (data.levelId !== gameState.currentLevel) return;
+    const m = monsters[data.monsterIndex];
+    if (!m) return;
+    m.dead = true;
+    m.health = 0;
 });
 
 socket.on('levelComplete', (levelId) => {
@@ -1728,6 +1820,8 @@ function updateUI() {
     // Update progress inside the game canvas
     document.getElementById('progress').textContent = gameState.progress;
     document.getElementById('maxProgress').textContent = gameState.maxProgress;
+    const livesEl = document.getElementById('lives');
+    if (livesEl) livesEl.textContent = gameState.lives;
 }
 
 
@@ -1840,6 +1934,7 @@ function loadLevel(id) {
     gameState.currentLevel = id;
     gameState.progress = 0;
     gameState.isDead = false;
+    gameState.lives = 3; // will be overwritten by server if mid-level
     document.getElementById('messageScreen').classList.add('hidden');
     
     const data = levelsData[id-1];
@@ -1852,6 +1947,8 @@ function loadLevel(id) {
     resetPlayerPosition();
     updateUI();
     socket.emit('requestLevelState', id);
+    socket.emit('requestMonsterState', id);
+    socket.emit('requestLivesState', id);
 }
 
 // Particle System (Simplified)

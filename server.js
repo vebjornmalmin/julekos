@@ -31,9 +31,17 @@ const players = {}; // socket.id -> { name, x, y, frame, facingRight, level }
 // levelId -> Set of integer indices
 const levelState = {}; 
 
+// Shared monster state (health/dead) per level
+// levelId -> { healthByIndex: { [idx]: number }, dead: Set<number> }
+const monsterState = {};
+
 // Track players who are "ready" for the next level
 // levelId -> Set of socket IDs
 const levelCompletion = {};
+
+// Shared lives per level (team lives)
+// levelId -> integer lives remaining
+const levelLives = {};
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -71,6 +79,7 @@ io.on('connection', (socket) => {
             
             socket.broadcast.emit('otherPlayerMoved', {
                 id: socket.id,
+                name: players[socket.id].name,
                 ...data
             });
         }
@@ -95,6 +104,57 @@ io.on('connection', (socket) => {
             const collectedIndices = Array.from(levelState[levelId]);
             socket.emit('levelStateResponse', { levelId, collectedIndices });
         }
+    });
+
+    // --- Monster sync (health + death only) ---
+    socket.on('requestMonsterState', (levelId) => {
+        const state = monsterState[levelId];
+        if (!state) {
+            socket.emit('monsterStateResponse', { levelId, healthByIndex: {}, deadIndices: [] });
+            return;
+        }
+        socket.emit('monsterStateResponse', {
+            levelId,
+            healthByIndex: state.healthByIndex,
+            deadIndices: Array.from(state.dead)
+        });
+    });
+
+    socket.on('monsterHit', ({ levelId, monsterIndex, health }) => {
+        if (!levelId && levelId !== 0) return;
+        if (monsterIndex === undefined || monsterIndex === null) return;
+
+        if (!monsterState[levelId]) {
+            monsterState[levelId] = { healthByIndex: {}, dead: new Set() };
+        }
+        const state = monsterState[levelId];
+
+        // Ignore hits to dead monsters
+        if (state.dead.has(monsterIndex)) return;
+
+        const nextHealth = Math.max(0, Math.min(99, Number(health)));
+        state.healthByIndex[monsterIndex] = nextHealth;
+        io.emit('monsterHit', { levelId, monsterIndex, health: nextHealth });
+
+        if (nextHealth <= 0) {
+            state.dead.add(monsterIndex);
+            io.emit('monsterDied', { levelId, monsterIndex });
+        }
+    });
+
+    socket.on('monsterDied', ({ levelId, monsterIndex }) => {
+        if (!levelId && levelId !== 0) return;
+        if (monsterIndex === undefined || monsterIndex === null) return;
+
+        if (!monsterState[levelId]) {
+            monsterState[levelId] = { healthByIndex: {}, dead: new Set() };
+        }
+        const state = monsterState[levelId];
+        if (!state.dead.has(monsterIndex)) {
+            state.dead.add(monsterIndex);
+        }
+        state.healthByIndex[monsterIndex] = 0;
+        io.emit('monsterDied', { levelId, monsterIndex });
     });
 
     // Handle Door Logic
@@ -135,16 +195,41 @@ io.on('connection', (socket) => {
     socket.on('requestNextLevel', (currentLevelId) => {
         // Simple relay to start next level for everyone if one person clicks continue?
         // Or require voting again? Let's just make "Continue" start it for everyone for simplicity
+        // Reset lives for next level
+        levelLives[currentLevelId + 1] = 3;
         io.emit('startNextLevel', currentLevelId + 1);
     });
 
-    // If anyone dies, reset the level's collectibles so the team must finish "in one go"
-    socket.on('playerDied', ({ levelId }) => {
+    socket.on('requestLivesState', (levelId) => {
         if (!levelId) return;
-        console.log(`Resetting level ${levelId} after death.`);
+        if (levelLives[levelId] == null) levelLives[levelId] = 3;
+        socket.emit('livesUpdate', { levelId, lives: levelLives[levelId] });
+    });
+
+    // If anyone dies, decrement lives. Only reset the level when lives reach 0.
+    socket.on('playerDied', ({ levelId, playerId }) => {
+        if (!levelId) return;
+        if (levelLives[levelId] == null) levelLives[levelId] = 3;
+
+        levelLives[levelId] = Math.max(0, levelLives[levelId] - 1);
+        console.log(`Level ${levelId} lives remaining: ${levelLives[levelId]}`);
+
+        io.emit('livesUpdate', { levelId, lives: levelLives[levelId] });
+
+        if (levelLives[levelId] > 0) {
+            // Respawn only the dead player, keep collectibles/monsters as-is
+            io.emit('playerRespawn', { levelId, playerId });
+            return;
+        }
+
+        // Out of lives: reset level state
+        console.log(`Resetting level ${levelId} after running out of lives.`);
+        levelLives[levelId] = 3;
         levelState[levelId] = new Set();
         levelCompletion[levelId] = new Set();
+        monsterState[levelId] = { healthByIndex: {}, dead: new Set() };
         io.emit('levelReset', levelId);
+        io.emit('livesUpdate', { levelId, lives: levelLives[levelId] });
     });
 
     socket.on('disconnect', () => {
